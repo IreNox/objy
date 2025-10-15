@@ -6,8 +6,6 @@
 
 #include <string.h>
 
-//static const ObjyId InvalidObjectId = { 0, 0, 0, { 0, 0, 0, 0 } };
-
 ObjySystem* objyCreate( const ObjyParameters* parameters )
 {
 	TikiAllocator allocator;
@@ -49,12 +47,41 @@ ObjyContext* objyGetContext( ObjyObject* object )
 
 ObjyContext* objyContextCreate( ObjySystem* system, ObjyObject* parentObject )
 {
-	return NULL;
+	ObjyContext* context;
+	const uint64 index = tikiPoolAllocateZero( &system->contextPool, &context );
+	if( index == TIKI_POOL_INVALID_INDEX )
+	{
+		return NULL;
+	}
+
+	context->allocator	= &system->allocator;
+	context->system		= system;
+	context->index		= index;
+
+	if( !objyObjectStorageConstruct( &context->objects, context->allocator ) )
+	{
+		objyContextDestroy( context );
+		return NULL;
+	}
+
+	objyValueStorageConstruct( &context->values, context->allocator );
+	objyChangeStorageConstruct( &context->changes, context->allocator );
+
+	return context;
 }
 
 void objyContextDestroy( ObjyContext* context )
 {
+	if( !context )
+	{
+		return;
+	}
 
+	objyObjectStorageDestruct( &context->objects );
+	objyValueStorageDestruct( &context->values );
+	objyChangeStorageDestruct( &context->changes );
+
+	tikiPoolFree( &context->system->contextPool, context->index );
 }
 
 bool objyIdIsValid( ObjyId id )

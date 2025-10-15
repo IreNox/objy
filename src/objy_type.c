@@ -172,7 +172,7 @@ ObjyType* objyTypeCreateArray( ObjySystem* system, ObjyType* baseType, void* use
 	return type;
 }
 
-ObjyType* objyTypeCreateOption( ObjySystem* system, ObjyType* baseType, void* userData )
+ObjyType* objyTypeCreateReference( ObjySystem* system, ObjyType* baseType, void* userData )
 {
 	if( !baseType )
 	{
@@ -184,30 +184,7 @@ ObjyType* objyTypeCreateOption( ObjySystem* system, ObjyType* baseType, void* us
 	memcpy( name, baseType->name.data, baseType->name.length );
 	strcpy( name + baseType->name.length, "*" );
 
-	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, ObjyTypeKind_Optional, userData );
-	if( !type )
-	{
-		return NULL;
-	}
-
-	type->baseType = baseType;
-
-	return type;
-}
-
-ObjyType* objyTypeCreateVariant( ObjySystem* system, ObjyType* baseType, void* userData )
-{
-	if( !baseType )
-	{
-		return NULL;
-	}
-
-	const uintsize nameLength = baseType->name.length + 2u;
-	char* name = alloca( nameLength );
-	memcpy( name, baseType->name.data, baseType->name.length );
-	strcpy( name + baseType->name.length, "^" );
-
-	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, ObjyTypeKind_Variant, userData );
+	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, ObjyTypeKind_Reference, userData );
 	if( !type )
 	{
 		return NULL;

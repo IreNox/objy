@@ -23,6 +23,18 @@ struct ObjyObject
 	ObjyObject*				lastChild;
 	ObjyObject*				prevSibling;
 	ObjyObject*				nextSibling;
+	uintsize				childCount;
 
 	ObjyValue*				rootValue;
 };
+
+typedef struct ObjyObjectStorage
+{
+	TikiAllocator*		allocator;
+
+	TikiPool			pool;
+	TikiHashMap			idMap;
+} ObjyObjectStorage;
+
+bool	objyObjectStorageConstruct( ObjyObjectStorage* objects, TikiAllocator* allocator );
+void	objyObjectStorageDestruct( ObjyObjectStorage* objects );

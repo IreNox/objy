@@ -6,56 +6,54 @@
 
 typedef struct ObjyTypeCollection ObjyTypeCollection;
 
-typedef struct ObjyValueStructField
+typedef struct ObjyValueField
 {
-	const char*				name;
-	ObjyValue*				value;
-} ObjyValueStructField;
+	const char*			name;
+	ObjyValue*			value;
+} ObjyValueField;
 
 typedef struct ObjyValueStructData
 {
-	ObjyValueStructField*	values;
-	uintsize				valueCount;
-	uintsize				valueCapacity;
+	ObjyValueField*		values;
+	uintsize			valueCount;
+	uintsize			valueCapacity;
 } ObjyValueStructData;
 
 typedef struct ObjyValueArrayData
 {
-	ObjyValue**				values;
-	uintsize				valueCount;
-	uintsize				valueCapacity;
+	ObjyValue**			values;
+	uintsize			valueCount;
+	uintsize			valueCapacity;
 } ObjyValueArrayData;
 
 typedef union ObjyValueData
 {
-	ObjyId					id;
-	bool					b;		// bool
-	uint64					uint;	// unsigned int
-	sint64					sint;	// signed int
-	double					fp;		// floating point
-	ObjyValueStructData		struc;	// struct
-	ObjyValueArrayData		arr;	// array
-	TikiStringView			str;	// string
-	ObjyValue*				opt;	// optional
-	ObjyValue*				var;	// variant
+	ObjyId				id;
+	bool				b;		// bool
+	uint64				uint;	// unsigned int
+	sint64				sint;	// signed int
+	double				fp;		// floating point
+	ObjyValueStructData	struc;	// struct
+	ObjyValueArrayData	arr;	// array
+	TikiStringView		str;	// string
+	ObjyValue*			ref;	// reference
 } ObjyValueData;
 
 struct ObjyValue
 {
-	uint64					index;
-	const ObjyType*			type;
-	ObjyValueData			data;
+	uint64				index;
+	const ObjyType*		type;
+	ObjyValueData		data;
 };
 
 typedef struct ObjyValueStorage
 {
-	TikiAllocator*			allocator;
-	ObjyTypeCollection*		types;
+	TikiAllocator*		allocator;
 
-	TikiPool				pool;
+	TikiPool			pool;
 } ObjyValueStorage;
 
-void		objyValueStorageConstruct( ObjyValueStorage* storage, ObjyTypeCollection* types, TikiAllocator* allocator );
+void		objyValueStorageConstruct( ObjyValueStorage* storage, TikiAllocator* allocator );
 void		objyValueStorageDestruct( ObjyValueStorage* storage );
 
 ObjyValue*	objyValueStorageAllocate( ObjyValueStorage* storage, const ObjyType* type, ObjyTypeKind requiredTypeKind );

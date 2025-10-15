@@ -97,8 +97,7 @@ typedef struct ObjyParameters					// Fill with zero for default parameters
 ObjySystem*				objyCreate( const ObjyParameters* parameters );
 void					objyDestroy( ObjySystem* system );
 
-ObjyContext*			objectGetRootContext( ObjySystem* system );
-ObjyContext*			objectGetContext( ObjyObject* object );
+ObjyContext*			objyGetRootContext( ObjySystem* system );
 
 ObjyContext*			objyContextCreate( ObjySystem* system, ObjyObject* parentObject );
 void					objyContextDestroy( ObjyContext* context );
@@ -114,8 +113,7 @@ typedef enum ObjyTypeKind
 	ObjyTypeKind_String,
 	ObjyTypeKind_Struct,
 	ObjyTypeKind_Array,
-	ObjyTypeKind_Optional,
-	ObjyTypeKind_Variant
+	ObjyTypeKind_Reference
 } ObjyTypeKind;
 
 typedef struct ObjyTypeField
@@ -128,8 +126,7 @@ ObjyType*				objyTypeCreateValue( ObjySystem* system, const char* name, ObjyType
 ObjyType*				objyTypeCreateStruct( ObjySystem* system, const char* name, const ObjyTypeField* fields, size_t fieldCount, void* userData );
 ObjyType*				objyTypeCreateStructInherited( ObjySystem* system, const char* name, ObjyType* baseType, const ObjyTypeField* fields, size_t fieldCount, void* userData );
 ObjyType*				objyTypeCreateArray( ObjySystem* system, ObjyType* baseType, void* userData );
-ObjyType*				objyTypeCreateOption( ObjySystem* system, ObjyType* baseType, void* userData );
-ObjyType*				objyTypeCreateVariant( ObjySystem* system, ObjyType* baseType, void* userData );
+ObjyType*				objyTypeCreateReference( ObjySystem* system, ObjyType* baseType, void* userData );
 void					objyTypeDestroy( ObjySystem* system, ObjyType* type );
 
 const ObjyType*			objyTypeFind( ObjySystem* system, const char* name );
@@ -158,9 +155,11 @@ const ObjyObject*		objyObjectFind( ObjyContext* context, ObjyId id );
 ObjyId					objyObjectGetId( const ObjyObject* object );
 const char*				objyObjectGetName( const ObjyObject* object );
 const ObjyType*			objyObjectGetType( const ObjyObject* object );
+ObjyContext*			objyObjectGetContext( const ObjyObject* object );
 const ObjyObject*		objyObjectGetParent( const ObjyObject* object );
 const ObjyObject*		objyObjectGetFirstChild( const ObjyObject* object );
-const ObjyObject*		objyObjectGetNextChild( const ObjyObject* object );
+const ObjyObject*		objyObjectGetPrevSibling( const ObjyObject* object );
+const ObjyObject*		objyObjectGetNextSibling( const ObjyObject* object );
 size_t					objyObjectGetChildCount( const ObjyObject* object );
 const ObjyObject*		objyObjectFindChildByName( const ObjyObject* object, const char* childName );
 
@@ -178,9 +177,8 @@ ObjyValue*				objyValueCreateFloat( ObjyContext* context, double newValue, const
 ObjyValue*				objyValueCreateString( ObjyContext* context, const char* newValue, const ObjyType* stringType );
 ObjyValue*				objyValueCreateStruct( ObjyContext* context, const ObjyType* structType );
 ObjyValue*				objyValueCreateArray( ObjyContext* context, const ObjyType* arrayType );
-ObjyValue*				objyValueCreateOptional( ObjyContext* context, const ObjyType* optionalType );
-ObjyValue*				objyValueCreateVariant( ObjyContext* context, const ObjyType* variantType );
-ObjyValue*				objyValueCreateCopy( ObjyContext* context, ObjyValue* value );
+ObjyValue*				objyValueCreateReference( ObjyContext* context, const ObjyType* referenceType );
+ObjyValue*				objyValueCreateCopy( ObjyContext* context, ObjyValue* valueToCopy );
 
 void					objyValueDestroy( ObjyContext* context, ObjyValue* value );
 
@@ -198,25 +196,25 @@ const char*				objyValueReadStructFieldIndexName( const ObjyValue* value, size_t
 size_t					objyValueReadStructFieldCount( const ObjyValue* value );
 const ObjyValue*		objyValueReadArray( const ObjyValue* value, size_t index );
 size_t					objyValueReadArrayCount( const ObjyValue* value );
-const ObjyValue*		objyValueReadOptional( const ObjyValue* value );
-const ObjyValue*		objyValueReadVariant( const ObjyValue* value );
-const ObjyType*			objyValueReadVariantType( const ObjyValue* value );
+const ObjyValue*		objyValueReadReference( const ObjyValue* value );
+const ObjyType*			objyValueReadReferenceType( const ObjyValue* value );
 
 bool					objyValueWriteId( ObjyContext* context, ObjyValue* value, ObjyId newValue );
 bool					objyValueWriteBool( ObjyContext* context, ObjyValue* value, bool newValue );
 bool					objyValueWriteUInt( ObjyContext* context, ObjyValue* value, uint64_t newValue );
 bool					objyValueWriteSInt( ObjyContext* context, ObjyValue* value, int64_t newValue );
 bool					objyValueWriteFloat( ObjyContext* context, ObjyValue* value, double newValue );
-bool					objyValueWriteString( ObjyContext* context, ObjyValue* value, const char* newValue );
+bool					objyValueWriteString( ObjyContext* context, ObjyValue* value, const char* string );
+bool					objyValueWriteStringLength( ObjyContext* context, ObjyValue* value, const char* string, size_t stringLength );
 bool					objyValueWriteStructField( ObjyContext* context, ObjyValue* value, const char* fieldName, ObjyValue* newValue );
 bool					objyValueWriteArray( ObjyContext* context, ObjyValue* value, size_t index, ObjyValue* newValue );
-bool					objyValueWriteOptional( ObjyContext* context, ObjyValue* value, ObjyValue* newValue );
-bool					objyValueWriteVariant( ObjyContext* context, ObjyValue* value, ObjyValue* newValue );
+bool					objyValueWriteReference( ObjyContext* context, ObjyValue* value, ObjyValue* newValue );
 
 // Change
 
 ObjyChangeSet*			objyChangeSetBegin( ObjyContext* context );
 ObjyChangeSet*			objyChangeSetBeginDetached( ObjyContext* context );
+bool					objyChangeSetMerge( ObjyChangeSet* changeSet, const ObjyChangeSet* sourceChangeSet );
 void					objyChangeSetDiscard( ObjyChangeSet* changeSet );
 bool					objyChangeSetSubmit( ObjyChangeSet* changeSet );
 
@@ -224,8 +222,11 @@ ObjyBlob				objyChangeSetSerialize( ObjyContext* context, ObjyObject* object, Ob
 ObjyChangeSet*			objyChangeSetDeserialize( ObjyContext* context, ObjyBlob data, ObjyChangeSetFormatter* formatter );
 bool					objyChangeSetDeserializeMerge( ObjyChangeSet* changeSet, ObjyBlob data, ObjyChangeSetFormatter* formatter );
 
-void					objyChangeSetObjectCreate( ObjyChangeSet* changeSet, ObjyId id, ObjyType* structType );
+bool					objyChangeSetIsValid( const ObjyChangeSet* changeSet );
+
+ObjyObject*				objyChangeSetObjectCreate( ObjyChangeSet* changeSet, ObjyId id, ObjyType* structType, ObjyObject* parent );
 void					objyChangeSetObjectDelete( ObjyChangeSet* changeSet, ObjyObject* object );
+bool					objyChangeSetObjectDeleteId( ObjyChangeSet* changeSet, ObjyId objectId );
 void					objyChangeSetObjectMove( ObjyChangeSet* changeSet, ObjyObject* object, ObjyObject* newParent );
 
 void					objyChangeSetWriteId( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, ObjyId value );
@@ -235,7 +236,7 @@ void					objyChangeSetWriteSInt( ObjyChangeSet* changeSet, ObjyObject* object, c
 void					objyChangeSetWriteFloat( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, double value );
 void					objyChangeSetWriteString( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, const char* value );
 void					objyChangeSetWriteArray( ObjyChangeSet* changeSet, ObjyObject* object, const char* path );
-void					objyChangeSetWriteOptional( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, bool isSet );
+void					objyChangeSetWriteOptional( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, const ObjyValue* value );
 void					objyChangeSetWriteVariant( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, const ObjyType* type );
 
 #ifdef __cplusplus

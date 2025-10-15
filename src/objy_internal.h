@@ -2,6 +2,7 @@
 
 #include "objy/objy.h"
 
+#include "objy_change.h"
 #include "objy_object.h"
 #include "objy_type.h"
 #include "objy_value.h"
@@ -32,11 +33,13 @@ struct ObjyContext
 	TikiAllocator*		allocator;
 	ObjySystem*			system;
 
-	TikiPool			objectPool;
-	TikiHashMap			objectIdMap;
-	ObjyObject*			rootObject;
+	uint64				index;
 
+	ObjyObjectStorage	objects;
 	ObjyValueStorage	values;
+	ObjyChangeStorage	changes;
+
+	ObjyObject*			rootObject;
 };
 
 // TODO
