@@ -400,6 +400,11 @@ const char* objyValueReadString( const ObjyValue* value )
 
 const ObjyValue* objyValueReadStructField( const ObjyValue* value, const char* fieldName )
 {
+	return objyValueReadStructFieldLength( value, fieldName, strlen( fieldName ) );
+}
+
+const ObjyValue* objyValueReadStructFieldLength( const ObjyValue* value, const char* fieldName, uintsize fieldNameLength )
+{
 	if( !value )
 	{
 		return NULL;
@@ -410,9 +415,10 @@ const ObjyValue* objyValueReadStructField( const ObjyValue* value, const char* f
 		return NULL;
 	}
 
+	const TikiStringView fieldNameView = tikiStringViewCreate( fieldName, fieldNameLength );
 	for( uintsize i = 0; i < value->data.struc.valueCount; ++i )
 	{
-		if( strcmp( value->data.struc.values[ i ].name, fieldName ) )
+		if( tikiStringViewIsEquals( value->data.struc.values[ i ].name, fieldNameView ) )
 		{
 			continue;
 		}
@@ -460,7 +466,7 @@ const char* objyValueReadStructFieldIndexName( const ObjyValue* value, size_t in
 		return NULL;
 	}
 
-	return value->data.struc.values[ index ].name;
+	return value->data.struc.values[ index ].name.data;
 }
 
 size_t objyValueReadStructFieldCount( const ObjyValue* value )
@@ -630,15 +636,22 @@ bool objyValueWriteStringLength( ObjyContext* context, ObjyValue* value, const c
 
 bool objyValueWriteStructField( ObjyContext* context, ObjyValue* value, const char* fieldName, ObjyValue* newValue )
 {
+	return objyValueWriteStructFieldLength( context, value, fieldName, strlen( fieldName ), newValue );
+}
+
+bool objyValueWriteStructFieldLength( ObjyContext* context, ObjyValue* value, const char* fieldName, uintsize fieldNameLength, ObjyValue* newValue )
+{
 	if( !value || value->type->kind != ObjyTypeKind_Struct )
 	{
 		return false;
 	}
 
+	const TikiStringView fieldNameView = tikiStringViewCreate( fieldName, fieldNameLength );
+
 	ObjyTypeField* typeField = NULL;
 	for( uintsize i = 0; i < value->type->globalFieldCount; ++i )
 	{
-		if( strcmp( value->type->globalFields[ i ].name, fieldName ) != 0 )
+		if( tikiStringViewIsEquals( tikiStringViewCreateFromPointer( value->type->globalFields[ i ].name ), fieldNameView ) != 0 )
 		{
 			continue;
 		}
@@ -661,7 +674,7 @@ bool objyValueWriteStructField( ObjyContext* context, ObjyValue* value, const ch
 	ObjyValueStructData* structData = &value->data.struc;
 	for( uintsize i = 0; i < value->data.struc.valueCount; ++i )
 	{
-		if( strcmp( structData->values[ i ].name, fieldName ) )
+		if( tikiStringViewIsEquals( structData->values[ i ].name, fieldNameView ) )
 		{
 			continue;
 		}
@@ -680,7 +693,7 @@ bool objyValueWriteStructField( ObjyContext* context, ObjyValue* value, const ch
 		valueField = &value->data.struc.values[ value->data.struc.valueCount ];
 		value->data.struc.valueCount++;
 
-		valueField->name = typeField->name;
+		valueField->name = tikiStringViewCreateFromPointer( typeField->name );
 	}
 	else
 	{

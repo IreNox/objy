@@ -8,7 +8,7 @@ typedef struct ObjyTypeCollection ObjyTypeCollection;
 
 typedef struct ObjyValueField
 {
-	const char*			name;
+	TikiStringView		name;
 	ObjyValue*			value;
 } ObjyValueField;
 

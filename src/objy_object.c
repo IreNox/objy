@@ -2,12 +2,13 @@
 
 #include "objy_internal.h"
 
-#include <string.h>
+#include <stdlib.h>
 
-static TikiHash	objyObjectIdMapHash( const void* entry );
-static bool		objyObjectIdMapIsKeyEquals( const void* lhs, const void* rhs );
+static TikiHash		objyObjectIdMapHash( const void* entry );
+static bool			objyObjectIdMapIsKeyEquals( const void* lhs, const void* rhs );
 
 static ObjyObject*	objyObjectFindInternal( ObjyContext* context, ObjyId id );
+static ObjyValue*	objyObjectFindValueInternal( ObjyValue* value, TikiStringView path );
 
 bool objyObjectStorageConstruct( ObjyObjectStorage* objects, TikiAllocator* allocator )
 {
@@ -24,7 +25,7 @@ void objyObjectStorageDestruct( ObjyObjectStorage* objects )
 	tikiPoolDestruct( &objects->pool );
 }
 
-ObjyObject* objyObjectCreateDetached( ObjyContext* context, ObjyId id, const char* name, ObjyType* structType )
+ObjyObject* objyObjectCreateDetached( ObjyContext* context, ObjyId id, const char* name, const ObjyType* structType )
 {
 	if( !objyIdIsValid( id ) )
 	{
@@ -190,6 +191,21 @@ size_t objyObjectGetChildCount( const ObjyObject* object )
 	return object->childCount;
 }
 
+const ObjyObject* objyObjectFindChildByName( const ObjyObject* object, const char* childName )
+{
+	const TikiStringView childNameView = tikiStringViewCreateFromPointer( childName );
+
+	for( ObjyObject* child = object->firstChild; child != NULL; child = child->nextSibling )
+	{
+		if( tikiStringViewIsEquals( childNameView, child->name ) )
+		{
+			return child;
+		}
+	}
+
+	return NULL;
+}
+
 ObjyValue* objyObjectGetValueWritable( ObjyObject* object )
 {
 	return object->rootValue;
@@ -200,7 +216,82 @@ const ObjyValue* objyObjectGetValue( const ObjyObject* object )
 	return object->rootValue;
 }
 
-const ObjyValue* objyObjectFindValue( const ObjyObject* object, const char* path );
+static ObjyValue* objyObjectFindValueInternal( ObjyValue* value, TikiStringView path )
+{
+	if( !value || !path.length )
+	{
+		return value;
+	}
+	else if( path.data[ 0 ] == '[' )
+	{
+		if( value->type->kind != ObjyTypeKind_Array )
+		{
+			TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Expected 'Array' value but got '%s' value. Path: %.*s", objyTypeKindGetString( value->type->kind ), path.length, path.data );
+			return NULL;
+		}
+
+		const char* arrayClose = memchr( path.data, ']', path.length );
+		if( !arrayClose )
+		{
+			TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: No array close square brackets. Path: %.*s", path.length, path.data );
+			return NULL;
+		}
+
+		char* numberEnd = NULL;
+		const long arrayIndex = strtol( path.data + 1, &numberEnd, 10 );
+		if( numberEnd != arrayClose )
+		{
+			TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Invalid array index. Path: %.*s", path.length, path.data );
+			return NULL;
+		}
+
+		if( arrayIndex >= value->data.arr.valueCount )
+		{
+			TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Array index(%d) out of range(%d). Path: %.*s", arrayIndex, value->data.arr.valueCount, path.length, path.data );
+			return NULL;
+		}
+
+		return objyObjectFindValueInternal( value->data.arr.values[ arrayIndex ], tikiStringViewCreateBeginEnd( arrayClose + 1, path.data + path.length ) );
+	}
+	else if( value->type->kind == ObjyTypeKind_Reference )
+	{
+		return objyObjectFindValueInternal( value->data.ref, path );
+	}
+	else if( value->type->kind != ObjyTypeKind_Struct )
+	{
+		TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Expected 'Struct' value but got '%s' value. Path: %.*s", objyTypeKindGetString( value->type->kind ), path.length, path.data );
+		return NULL;
+	}
+
+	uintsize endAdd = 1;
+	const char* fieldEnd = memchr( path.data, '.', path.length );
+	if( !fieldEnd )
+	{
+		endAdd = 0;
+		fieldEnd = path.data + path.length;
+	}
+
+	const TikiStringView fieldView = tikiStringViewCreateBeginEnd( path.data, fieldEnd );
+	for( size_t i = 0; i < value->data.struc.valueCount; ++i )
+	{
+		ObjyValueField* field = &value->data.struc.values[ i ];
+		if( !tikiStringViewIsEquals( fieldView, field->name ) )
+		{
+			continue;
+		}
+
+		return objyObjectFindValueInternal( field->value, tikiStringViewCreateBeginEnd( fieldEnd + endAdd, path.data + path.length ) );
+	}
+
+	TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Struct field '%.*s' not found. Path: %.*s", fieldView.length, fieldView.data, path.length, path.data );
+	return NULL;
+}
+
+const ObjyValue* objyObjectFindValue( const ObjyObject* object, const char* path )
+{
+	const TikiStringView pathView = tikiStringViewCreateFromPointer( path );
+	return objyObjectFindValueInternal( object->rootValue, pathView );
+}
 
 static TikiHash objyObjectIdMapHash( const void* entry )
 {

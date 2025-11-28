@@ -11,9 +11,8 @@ struct TikiStringPoolChunk
 	char					data[ 1u ];
 };
 
-static TikiStringView	tikiStringViewCreateEmpty();
-static TikiHash			tikiStringPoolHash( const void* entry );
-static bool				tikiStringPoolIsKeyEquals( const void* lhs, const void* rhs );
+static TikiHash				tikiStringPoolHash( const void* entry );
+static bool					tikiStringPoolIsKeyEquals( const void* lhs, const void* rhs );
 
 bool tikiStringPoolConstruct( TikiStringPool* stringPool, TikiAllocator* allocator )
 {
@@ -146,10 +145,3 @@ static bool tikiStringPoolIsKeyEquals( const void* lhs, const void* rhs )
 	return memcmp( lhsString->data, rhsString->data, lhsString->length ) == 0;
 }
 
-static TikiStringView tikiStringViewCreateEmpty()
-{
-	TikiStringView string;
-	string.data		= NULL;
-	string.length	= 0u;
-	return string;
-}

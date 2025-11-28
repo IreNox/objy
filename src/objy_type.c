@@ -14,8 +14,8 @@ bool objyTypeCollectionConstruct( ObjyTypeCollection* types, TikiAllocator* allo
 	types->firstType	= NULL;
 	types->lastType	= NULL;
 
-	if( !tikiHashMapConstructSize( &types->nameMap, types->allocator, sizeof( ObjyType* ), objyTypeHash, objyTypeEquals, 64u ) ||
-		!tikiStringPoolConstruct( &types->stringPool, types->allocator ) )
+	if( !tikiHashMapConstructSize( &types->nameMap, allocator, sizeof( ObjyType* ), objyTypeHash, objyTypeEquals, 64u ) ||
+		!tikiStringPoolConstruct( &types->stringPool, allocator ) )
 	{
 		objyTypeCollectionDestruct( types );
 		return false;
@@ -49,6 +49,23 @@ const ObjyType* objyTypeCollectionFind( ObjyTypeCollection* types, const char* n
 	return *type;
 }
 
+const char* objyTypeKindGetString( ObjyTypeKind kind )
+{
+	switch( kind )
+	{
+	case ObjyTypeKind_Id:			return "Id";
+	case ObjyTypeKind_Bool:			return "Bool";
+	case ObjyTypeKind_Integer:		return "Integer";
+	case ObjyTypeKind_Float:		return "Float";
+	case ObjyTypeKind_String:		return "String";
+	case ObjyTypeKind_Struct:		return "Struct";
+	case ObjyTypeKind_Array:		return "Array";
+	case ObjyTypeKind_Reference:	return "Reference";
+	}
+
+	return "invalid";
+}
+
 static ObjyType* objyTypeCollectionCreateInternal( ObjyTypeCollection* types, const char* name, ObjyTypeKind kind, void* userData )
 {
 	const TikiStringView pooledName = tikiStringPoolAddPointer( &types->stringPool, name );
@@ -59,14 +76,13 @@ static ObjyType* objyTypeCollectionCreateInternal( ObjyTypeCollection* types, co
 	}
 
 	ObjyType* type;
-	const uint64 typeIndex = tikiPoolAllocateZero( &types->pool, (void**)&type );
-	if( typeIndex == TIKI_POOL_INVALID_INDEX )
+	const uint64 typeHandle = tikiPoolAllocateZero( &types->pool, (void**)&type );
+	if( typeHandle == TIKI_POOL_INVALID_INDEX )
 	{
 		return NULL;
 	}
 
 	type->name		= pooledName;
-	type->index		= typeIndex;
 	type->kind		= kind;
 	type->userData	= userData;
 
@@ -86,7 +102,7 @@ static ObjyType* objyTypeCollectionCreateInternal( ObjyTypeCollection* types, co
 	return type;
 }
 
-ObjyType* objyTypeCreateValue( ObjySystem* system, const char* name, ObjyTypeKind kind, size_t bitCount, bool signedInt, void* userData )
+const ObjyType* objyTypeCreateValue( ObjySystem* system, const char* name, ObjyTypeKind kind, size_t bitCount, bool signedInt, void* userData )
 {
 	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, kind, userData );
 	if( !type )
@@ -100,12 +116,12 @@ ObjyType* objyTypeCreateValue( ObjySystem* system, const char* name, ObjyTypeKin
 	return type;
 }
 
-ObjyType* objyTypeCreateStruct( ObjySystem* system, const char* name, const ObjyTypeField* fields, size_t fieldCount, void* userData )
+const ObjyType* objyTypeCreateStruct( ObjySystem* system, const char* name, const ObjyTypeField* fields, size_t fieldCount, void* userData )
 {
 	return objyTypeCreateStructInherited( system, name, NULL, fields, fieldCount, userData );
 }
 
-ObjyType* objyTypeCreateStructInherited( ObjySystem* system, const char* name, ObjyType* baseType, const ObjyTypeField* fields, size_t fieldCount, void* userData )
+const ObjyType* objyTypeCreateStructInherited( ObjySystem* system, const char* name, const ObjyType* baseType, const ObjyTypeField* fields, size_t fieldCount, void* userData )
 {
 	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, ObjyTypeKind_Struct, userData );
 	if( !type )
@@ -149,13 +165,8 @@ ObjyType* objyTypeCreateStructInherited( ObjySystem* system, const char* name, O
 	return type;
 }
 
-ObjyType* objyTypeCreateArray( ObjySystem* system, ObjyType* baseType, void* userData )
+const ObjyType* objyTypeCreateArray( ObjySystem* system, const ObjyType* baseType, void* userData )
 {
-	if( !baseType )
-	{
-		return NULL;
-	}
-
 	const uintsize nameLength = baseType->name.length + 3u;
 	char* name = alloca( nameLength );
 	memcpy( name, baseType->name.data, baseType->name.length );
@@ -172,13 +183,8 @@ ObjyType* objyTypeCreateArray( ObjySystem* system, ObjyType* baseType, void* use
 	return type;
 }
 
-ObjyType* objyTypeCreateReference( ObjySystem* system, ObjyType* baseType, void* userData )
+const ObjyType* objyTypeCreateReference( ObjySystem* system, const ObjyType* baseType, void* userData )
 {
-	if( !baseType )
-	{
-		return NULL;
-	}
-
 	const uintsize nameLength = baseType->name.length + 2u;
 	char* name = alloca( nameLength );
 	memcpy( name, baseType->name.data, baseType->name.length );
@@ -195,9 +201,9 @@ ObjyType* objyTypeCreateReference( ObjySystem* system, ObjyType* baseType, void*
 	return type;
 }
 
-void objyTypeDestroy( ObjySystem* system, ObjyType* type )
+void objyTypeDestroy( ObjySystem* system, const ObjyType* type )
 {
-	objyTypeDestroyInternal( &system->types, type );
+	objyTypeDestroyInternal( &system->types, (ObjyType*)type );
 }
 
 static void objyTypeDestroyInternal( ObjyTypeCollection* types, ObjyType* type )
@@ -245,7 +251,7 @@ ObjyTypeKind objyTypeGetKind( const ObjyType* type )
 	return type->kind;
 }
 
-ObjyType* objyTypeGetBaseType( const ObjyType* type )
+const ObjyType* objyTypeGetBaseType( const ObjyType* type )
 {
 	return type->baseType;
 }

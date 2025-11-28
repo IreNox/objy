@@ -74,7 +74,7 @@ typedef struct ObjyObjectFormatter
 	void*						userData;
 } ObjyObjectFormatter;
 
-typedef ObjyBlob (*ObjyChangeSetSerializeFunc)( ObjyChangeSet* chnageSet, void* userData );
+typedef ObjyBlob (*ObjyChangeSetSerializeFunc)( const ObjyChangeSet* chnageSet, void* userData );
 typedef bool (*ObjyChangeSetDeserializeFunc)( ObjyChangeSet* chnageSet, ObjyBlob data, void* userData );
 typedef void (*ObjyChangeSetBlobFree)( ObjyBlob blob, void* userData );
 
@@ -122,18 +122,18 @@ typedef struct ObjyTypeField
 	const ObjyType*		type;
 } ObjyTypeField;
 
-ObjyType*				objyTypeCreateValue( ObjySystem* system, const char* name, ObjyTypeKind kind, size_t bitCount, bool signedInt, void* userData );	// bitCount: only for ObjyTypeKind_Integer and ObjyTypeKind_Float, signedInt: only for ObjyTypeKind_Integer
-ObjyType*				objyTypeCreateStruct( ObjySystem* system, const char* name, const ObjyTypeField* fields, size_t fieldCount, void* userData );
-ObjyType*				objyTypeCreateStructInherited( ObjySystem* system, const char* name, ObjyType* baseType, const ObjyTypeField* fields, size_t fieldCount, void* userData );
-ObjyType*				objyTypeCreateArray( ObjySystem* system, ObjyType* baseType, void* userData );
-ObjyType*				objyTypeCreateReference( ObjySystem* system, ObjyType* baseType, void* userData );
-void					objyTypeDestroy( ObjySystem* system, ObjyType* type );
+const ObjyType*			objyTypeCreateValue( ObjySystem* system, const char* name, ObjyTypeKind kind, size_t bitCount, bool signedInt, void* userData );	// bitCount: only for ObjyTypeKind_Integer and ObjyTypeKind_Float, signedInt: only for ObjyTypeKind_Integer
+const ObjyType*			objyTypeCreateStruct( ObjySystem* system, const char* name, const ObjyTypeField* fields, size_t fieldCount, void* userData );
+const ObjyType*			objyTypeCreateStructInherited( ObjySystem* system, const char* name, const ObjyType* baseType, const ObjyTypeField* fields, size_t fieldCount, void* userData );
+const ObjyType*			objyTypeCreateArray( ObjySystem* system, const ObjyType* baseType, void* userData );
+const ObjyType*			objyTypeCreateReference( ObjySystem* system, const ObjyType* baseType, void* userData );
+void					objyTypeDestroy( ObjySystem* system, const ObjyType* type );
 
 const ObjyType*			objyTypeFind( ObjySystem* system, const char* name );
 
 const char*				objyTypeGetName( const ObjyType* type );
 ObjyTypeKind			objyTypeGetKind( const ObjyType* type );
-ObjyType*				objyTypeGetBaseType( const ObjyType* type );
+const ObjyType*			objyTypeGetBaseType( const ObjyType* type );
 void*					objyTypeGetUserData( const ObjyType* type );
 const ObjyTypeField*	objyTypeGetStructLocalFields( const ObjyType* type );
 size_t					objyTypeGetStructLocalFieldCount( const ObjyType* type );
@@ -143,7 +143,7 @@ size_t					objyTypeGetValueBitCount( const ObjyType* type );
 
 // Object
 
-ObjyObject*				objyObjectCreateDetached( ObjyContext* context, ObjyId id, const char* name, ObjyType* structType/*, ObjyObject* parent*/ );
+ObjyObject*				objyObjectCreateDetached( ObjyContext* context, ObjyId id, const char* name, const ObjyType* structType );
 void					objyObjectDestroy( ObjyContext* context, ObjyObject* object );
 
 ObjyBlob				objyObjectSerialize( ObjyContext* context, const ObjyObject* object, ObjyObjectFormatter* formatter );
@@ -191,6 +191,7 @@ int64_t					objyValueReadSInt( const ObjyValue* value );
 double					objyValueReadFloat( const ObjyValue* value );
 const char*				objyValueReadString( const ObjyValue* value );
 const ObjyValue*		objyValueReadStructField( const ObjyValue* value, const char* fieldName );
+const ObjyValue*		objyValueReadStructFieldLength( const ObjyValue* value, const char* fieldName, size_t fieldNameLength );
 const ObjyValue*		objyValueReadStructFieldIndex( const ObjyValue* value, size_t index );
 const char*				objyValueReadStructFieldIndexName( const ObjyValue* value, size_t index );
 size_t					objyValueReadStructFieldCount( const ObjyValue* value );
@@ -207,6 +208,7 @@ bool					objyValueWriteFloat( ObjyContext* context, ObjyValue* value, double new
 bool					objyValueWriteString( ObjyContext* context, ObjyValue* value, const char* string );
 bool					objyValueWriteStringLength( ObjyContext* context, ObjyValue* value, const char* string, size_t stringLength );
 bool					objyValueWriteStructField( ObjyContext* context, ObjyValue* value, const char* fieldName, ObjyValue* newValue );
+bool					objyValueWriteStructFieldLength( ObjyContext* context, ObjyValue* value, const char* fieldName, size_t fieldNameLength, ObjyValue* newValue );
 bool					objyValueWriteArray( ObjyContext* context, ObjyValue* value, size_t index, ObjyValue* newValue );
 bool					objyValueWriteReference( ObjyContext* context, ObjyValue* value, ObjyValue* newValue );
 

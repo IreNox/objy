@@ -13,7 +13,7 @@ struct ObjyObject
 
 	ObjyContext*			context;
 	ObjyObject*				parent;
-	ObjyType*				type;
+	const ObjyType*			type;
 
 	TikiStringView			name;
 

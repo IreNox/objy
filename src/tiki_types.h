@@ -1,8 +1,10 @@
 #pragma once
 
 #include <float.h>
+#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #ifdef _DEBUG
 #	include <assert.h>
@@ -11,8 +13,6 @@
 #ifdef _MSC_VER
 #	include <intrin.h>
 #endif
-
-#include <limits.h>
 
 typedef uint8_t		uint8;
 typedef uint16_t	uint16;
@@ -48,9 +48,43 @@ typedef struct TikiStringView
 	uintsize		length;
 } TikiStringView;
 
-TikiStringView	tikiStringViewCreateEmpty();
-TikiStringView	tikiStringViewCreateFromPointer( const char* string );
-bool			tikiStringViewIsEquals( TikiStringView lhs, TikiStringView rhs );
+inline TikiStringView tikiStringViewCreate( const char* string, uintsize length )
+{
+	const TikiStringView result = { string, length };
+	return result;
+}
+
+inline TikiStringView tikiStringViewCreateBeginEnd( const char* begin, const char* end )
+{
+	const TikiStringView result = { begin, end - begin };
+	return result;
+}
+
+inline TikiStringView tikiStringViewCreateEmpty()
+{
+	const TikiStringView result = { NULL, 0 };
+	return result;
+}
+
+inline TikiStringView tikiStringViewCreateFromPointer( const char* string )
+{
+	const TikiStringView result = { string, strlen( string ) };
+	return result;
+}
+
+inline bool tikiStringViewIsEquals( TikiStringView lhs, TikiStringView rhs )
+{
+	if( lhs.length != rhs.length )
+	{
+		return false;
+	}
+	else if( !lhs.data || !rhs.data )
+	{
+		return lhs.length == 0;
+	}
+
+	return strncmp( lhs.data, rhs.data, lhs.length ) == 0;
+}
 
 #ifdef _DEBUG
 #	define TIKI_ASSERT( exp ) assert( exp )

@@ -10,6 +10,8 @@
 #	define OBJY_TYPE_CHUNK_SIZE 256
 #endif
 
+typedef struct ObjyType ObjyType;
+
 typedef struct ObjyTypeCollection
 {
 	TikiAllocator*	allocator;
@@ -27,7 +29,7 @@ struct ObjyType
 	TikiStringView	name;
 	uint64			index;
 	ObjyTypeKind	kind;
-	ObjyType*		baseType;
+	const ObjyType*	baseType;
 	uint8			bitCount;
 	bool			signedInt;
 	void*			userData;
@@ -45,3 +47,5 @@ bool				objyTypeCollectionConstruct( ObjyTypeCollection* types, TikiAllocator* a
 void				objyTypeCollectionDestruct( ObjyTypeCollection* types );
 
 const ObjyType*		objyTypeCollectionFind( ObjyTypeCollection* types, const char* name );
+
+const char*			objyTypeKindGetString( ObjyTypeKind kind );
