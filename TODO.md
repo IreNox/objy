@@ -1,0 +1,3 @@
+- binary formatter
+- json formatter
+- test it!
