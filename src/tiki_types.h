@@ -48,43 +48,16 @@ typedef struct TikiStringView
 	uintsize		length;
 } TikiStringView;
 
-inline TikiStringView tikiStringViewCreate( const char* string, uintsize length )
-{
-	const TikiStringView result = { string, length };
-	return result;
-}
+TikiStringView	tikiStringViewCreate( const char* string, uintsize length );
+TikiStringView	tikiStringViewCreateBeginEnd( const char* begin, const char* end );
+TikiStringView	tikiStringViewCreateEmpty();
+TikiStringView	tikiStringViewCreateFromPointer( const char* string );
 
-inline TikiStringView tikiStringViewCreateBeginEnd( const char* begin, const char* end )
-{
-	const TikiStringView result = { begin, end - begin };
-	return result;
-}
+TikiStringView	tikiStringViewAllocateCopy( TikiAllocator* allocator, TikiStringView string );
+TikiStringView	tikiStringViewAllocateCopyPointer( TikiAllocator* allocator, const char* string );
+TikiStringView	tikiStringViewAllocateCopyPointerLength( TikiAllocator* allocator, const char* string, uintsize length );
 
-inline TikiStringView tikiStringViewCreateEmpty()
-{
-	const TikiStringView result = { NULL, 0 };
-	return result;
-}
-
-inline TikiStringView tikiStringViewCreateFromPointer( const char* string )
-{
-	const TikiStringView result = { string, strlen( string ) };
-	return result;
-}
-
-inline bool tikiStringViewIsEquals( TikiStringView lhs, TikiStringView rhs )
-{
-	if( lhs.length != rhs.length )
-	{
-		return false;
-	}
-	else if( !lhs.data || !rhs.data )
-	{
-		return lhs.length == 0;
-	}
-
-	return strncmp( lhs.data, rhs.data, lhs.length ) == 0;
-}
+bool			tikiStringViewIsEquals( TikiStringView lhs, TikiStringView rhs );
 
 #ifdef _DEBUG
 #	define TIKI_ASSERT( exp ) assert( exp )

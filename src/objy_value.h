@@ -14,6 +14,7 @@ typedef struct ObjyValueField
 
 typedef struct ObjyValueStructData
 {
+	const ObjyType*		structType;
 	ObjyValueField*		values;
 	uintsize			valueCount;
 	uintsize			valueCapacity;
@@ -21,6 +22,7 @@ typedef struct ObjyValueStructData
 
 typedef struct ObjyValueArrayData
 {
+	const ObjyType*		elementType;
 	ObjyValue**			values;
 	uintsize			valueCount;
 	uintsize			valueCapacity;
@@ -42,7 +44,7 @@ typedef union ObjyValueData
 struct ObjyValue
 {
 	uint64				index;
-	const ObjyType*		type;
+	ObjyTypeKind		kind;
 	ObjyValueData		data;
 };
 
@@ -56,5 +58,5 @@ typedef struct ObjyValueStorage
 void		objyValueStorageConstruct( ObjyValueStorage* storage, TikiAllocator* allocator );
 void		objyValueStorageDestruct( ObjyValueStorage* storage );
 
-ObjyValue*	objyValueStorageAllocate( ObjyValueStorage* storage, const ObjyType* type, ObjyTypeKind requiredTypeKind );
+ObjyValue*	objyValueStorageAllocate( ObjyValueStorage* storage, ObjyTypeKind typeKind );
 void		objyValueStorageFree( ObjyValueStorage* storage, ObjyValue* value );

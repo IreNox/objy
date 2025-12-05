@@ -14,26 +14,24 @@ typedef enum ObjyChangeType
 
 typedef struct ObjyChangeCreateData
 {
-	ObjyId					id;
 	TikiStringView			typeName;
 	ObjyId					parentId;
+	ObjyValue*				initValue;
 } ObjyChangeCreateData;
 
 typedef struct ObjyChangeDeleteData
 {
-	ObjyId					id;
+	ObjyValue*				oldValue;
 } ObjyChangeDeleteData;
 
 typedef struct ObjyChangeMoveData
 {
-	ObjyId					objectId;
 	ObjyId					oldParentId;
 	ObjyId					newParentId;
 } ObjyChangeMoveData;
 
 typedef struct ObjyChangeModifyData
 {
-	ObjyId					object;
 	TikiStringView			path;
 	ObjyValue*				oldValue;
 	ObjyValue*				newValue;
@@ -50,12 +48,18 @@ typedef union ObjyChangeData
 typedef struct ObjyChange
 {
 	ObjyChangeType			type;
+	ObjyId					objectId;
 	ObjyChangeData			data;
 } ObjyChange;
 
 struct ObjyChangeSet
 {
+	uint64					index;
+
 	ObjyContext*			context;
+
+	bool					isDetached;
+	bool					hasError;
 
 	ObjyChangeSet*			prevChangeSet;
 	ObjyChangeSet*			nextChangeSet;

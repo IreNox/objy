@@ -86,5 +86,5 @@ void objyContextDestroy( ObjyContext* context )
 
 bool objyIdIsValid( ObjyId id )
 {
-	return memcmp( &id, &InvalidObjectId, sizeof( id ) ) != 0;
+	return memcmp( &id, &ObjyIdInvalid, sizeof( id ) ) != 0;
 }

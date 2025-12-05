@@ -25,6 +25,22 @@ void objyObjectStorageDestruct( ObjyObjectStorage* objects )
 	tikiPoolDestruct( &objects->pool );
 }
 
+ObjyObject* objyObjectStorageCreateObject( ObjyObjectStorage* objects, ObjyId id, const ObjyType* structType )
+{
+	if( !structType )
+	{
+		TIKI_DEBUG_ERROR( "Can't create object no type given." );
+		return NULL;
+	}
+	else if( structType->kind != ObjyTypeKind_Struct )
+	{
+		TIKI_DEBUG_ERROR( "Can't create object from non struct type." );
+		return NULL;
+	}
+
+#pragma message( "objyObjectStorageCreateObject: not implemented" )
+}
+
 ObjyObject* objyObjectCreateDetached( ObjyContext* context, ObjyId id, const char* name, const ObjyType* structType )
 {
 	if( !objyIdIsValid( id ) )
@@ -224,9 +240,9 @@ static ObjyValue* objyObjectFindValueInternal( ObjyValue* value, TikiStringView 
 	}
 	else if( path.data[ 0 ] == '[' )
 	{
-		if( value->type->kind != ObjyTypeKind_Array )
+		if( value->kind != ObjyTypeKind_Array )
 		{
-			TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Expected 'Array' value but got '%s' value. Path: %.*s", objyTypeKindGetString( value->type->kind ), path.length, path.data );
+			TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Expected 'Array' value but got '%s' value. Path: %.*s", objyTypeKindGetString( value->kind ), path.length, path.data );
 			return NULL;
 		}
 
@@ -253,13 +269,13 @@ static ObjyValue* objyObjectFindValueInternal( ObjyValue* value, TikiStringView 
 
 		return objyObjectFindValueInternal( value->data.arr.values[ arrayIndex ], tikiStringViewCreateBeginEnd( arrayClose + 1, path.data + path.length ) );
 	}
-	else if( value->type->kind == ObjyTypeKind_Reference )
+	else if( value->kind == ObjyTypeKind_Reference )
 	{
 		return objyObjectFindValueInternal( value->data.ref, path );
 	}
-	else if( value->type->kind != ObjyTypeKind_Struct )
+	else if( value->kind != ObjyTypeKind_Struct )
 	{
-		TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Expected 'Struct' value but got '%s' value. Path: %.*s", objyTypeKindGetString( value->type->kind ), path.length, path.data );
+		TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Expected 'Struct' value but got '%s' value. Path: %.*s", objyTypeKindGetString( value->kind ), path.length, path.data );
 		return NULL;
 	}
 
@@ -290,6 +306,12 @@ static ObjyValue* objyObjectFindValueInternal( ObjyValue* value, TikiStringView 
 const ObjyValue* objyObjectFindValue( const ObjyObject* object, const char* path )
 {
 	const TikiStringView pathView = tikiStringViewCreateFromPointer( path );
+	return objyObjectFindValueInternal( object->rootValue, pathView );
+}
+
+const ObjyValue* objyObjectFindValueLength( const ObjyObject* object, const char* path, size_t pathLength )
+{
+	const TikiStringView pathView = tikiStringViewCreate( path, pathLength );
 	return objyObjectFindValueInternal( object->rootValue, pathView );
 }
 

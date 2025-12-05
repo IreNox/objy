@@ -25,7 +25,10 @@ typedef struct ObjyId
 	uint8_t				data4[ 8 ];
 } ObjyId;
 
-static const ObjyId InvalidObjectId = { 0, 0, 0, { 0, 0, 0, 0 } };
+static const ObjyId ObjyIdInvalid = { 0, 0, 0, { 0, 0, 0, 0 } };
+
+#define OBJY_ID_FORMAT_STRING "%08x-%04x-%04x-%02x%02-x%02x%02x%02x%02x%02x%02x"
+#define OBJY_ID_FORMAT_DATA( var ) var.data1, var.data2, var.data3, var.data4[ 0 ], var.data4[ 1 ], var.data4[ 2 ], var.data4[ 3 ], var.data4[ 4 ], var.data4[ 5 ], var.data4[ 6 ], var.data4[ 7 ]
 
 bool objyIdIsValid( ObjyId id );
 
@@ -74,8 +77,8 @@ typedef struct ObjyObjectFormatter
 	void*						userData;
 } ObjyObjectFormatter;
 
-typedef ObjyBlob (*ObjyChangeSetSerializeFunc)( const ObjyChangeSet* chnageSet, void* userData );
-typedef bool (*ObjyChangeSetDeserializeFunc)( ObjyChangeSet* chnageSet, ObjyBlob data, void* userData );
+typedef ObjyBlob (*ObjyChangeSetSerializeFunc)( const ObjyChangeSet* changeSet, void* userData );
+typedef bool (*ObjyChangeSetDeserializeFunc)( ObjyChangeSet* changeSet, ObjyBlob data, void* userData );
 typedef void (*ObjyChangeSetBlobFree)( ObjyBlob blob, void* userData );
 
 typedef struct ObjyChangeSetFormatter
@@ -166,23 +169,24 @@ const ObjyObject*		objyObjectFindChildByName( const ObjyObject* object, const ch
 ObjyValue*				objyObjectGetValueWritable( ObjyObject* object );
 const ObjyValue*		objyObjectGetValue( const ObjyObject* object );
 const ObjyValue*		objyObjectFindValue( const ObjyObject* object, const char* path );
+const ObjyValue*		objyObjectFindValueLength( const ObjyObject* object, const char* path, size_t pathLength );
 
 // Value
 
-ObjyValue*				objyValueCreateId( ObjyContext* context, ObjyId newValue, const ObjyType* idType );
-ObjyValue*				objyValueCreateBool( ObjyContext* context, bool newValue, const ObjyType* boolType );
-ObjyValue*				objyValueCreateUInt( ObjyContext* context, uint64_t newValue, const ObjyType* intType );
-ObjyValue*				objyValueCreateSInt( ObjyContext* context, int64_t newValue, const ObjyType* intType );
-ObjyValue*				objyValueCreateFloat( ObjyContext* context, double newValue, const ObjyType* floatType );
-ObjyValue*				objyValueCreateString( ObjyContext* context, const char* newValue, const ObjyType* stringType );
+ObjyValue*				objyValueCreateId( ObjyContext* context, ObjyId newValue );
+ObjyValue*				objyValueCreateBool( ObjyContext* context, bool newValue );
+ObjyValue*				objyValueCreateUInt( ObjyContext* context, uint64_t newValue );
+ObjyValue*				objyValueCreateSInt( ObjyContext* context, int64_t newValue );
+ObjyValue*				objyValueCreateFloat( ObjyContext* context, double newValue );
+ObjyValue*				objyValueCreateString( ObjyContext* context, const char* newValue );
 ObjyValue*				objyValueCreateStruct( ObjyContext* context, const ObjyType* structType );
-ObjyValue*				objyValueCreateArray( ObjyContext* context, const ObjyType* arrayType );
+ObjyValue*				objyValueCreateArray( ObjyContext* context, const ObjyType* elementType );
 ObjyValue*				objyValueCreateReference( ObjyContext* context, const ObjyType* referenceType );
-ObjyValue*				objyValueCreateCopy( ObjyContext* context, ObjyValue* valueToCopy );
+ObjyValue*				objyValueCreateCopy( ObjyContext* context, const ObjyValue* valueToCopy );
 
 void					objyValueDestroy( ObjyContext* context, ObjyValue* value );
 
-const ObjyType*			objyValueGetType( const ObjyValue* value );
+ObjyTypeKind			objyValueGetKind( const ObjyValue* value );
 
 ObjyId					objyValueReadId( const ObjyValue* value );
 bool					objyValueReadBool( const ObjyValue* value );
@@ -220,15 +224,16 @@ bool					objyChangeSetMerge( ObjyChangeSet* changeSet, const ObjyChangeSet* sour
 void					objyChangeSetDiscard( ObjyChangeSet* changeSet );
 bool					objyChangeSetSubmit( ObjyChangeSet* changeSet );
 
-ObjyBlob				objyChangeSetSerialize( ObjyContext* context, ObjyObject* object, ObjyChangeSetFormatter* formatter );
+ObjyBlob				objyChangeSetSerialize( ObjyContext* context, const ObjyChangeSet* changeSet, ObjyChangeSetFormatter* formatter );
 ObjyChangeSet*			objyChangeSetDeserialize( ObjyContext* context, ObjyBlob data, ObjyChangeSetFormatter* formatter );
 bool					objyChangeSetDeserializeMerge( ObjyChangeSet* changeSet, ObjyBlob data, ObjyChangeSetFormatter* formatter );
 
 bool					objyChangeSetIsValid( const ObjyChangeSet* changeSet );
 
-ObjyObject*				objyChangeSetObjectCreate( ObjyChangeSet* changeSet, ObjyId id, ObjyType* structType, ObjyObject* parent );
+ObjyObject*				objyChangeSetObjectCreate( ObjyChangeSet* changeSet, ObjyId id, const ObjyType* structType, ObjyId parentId );
+ObjyObject*				objyChangeSetObjectCreateValue( ObjyChangeSet* changeSet, ObjyId id, const ObjyType* structType, ObjyId parentId, ObjyValue* initValue );
 void					objyChangeSetObjectDelete( ObjyChangeSet* changeSet, ObjyObject* object );
-bool					objyChangeSetObjectDeleteId( ObjyChangeSet* changeSet, ObjyId objectId );
+void					objyChangeSetObjectDeleteId( ObjyChangeSet* changeSet, ObjyId objectId );
 void					objyChangeSetObjectMove( ObjyChangeSet* changeSet, ObjyObject* object, ObjyObject* newParent );
 
 void					objyChangeSetWriteId( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, ObjyId value );

@@ -36,5 +36,12 @@ typedef struct ObjyObjectStorage
 	TikiHashMap			idMap;
 } ObjyObjectStorage;
 
-bool	objyObjectStorageConstruct( ObjyObjectStorage* objects, TikiAllocator* allocator );
-void	objyObjectStorageDestruct( ObjyObjectStorage* objects );
+bool		objyObjectStorageConstruct( ObjyObjectStorage* objects, TikiAllocator* allocator );
+void		objyObjectStorageDestruct( ObjyObjectStorage* objects );
+
+ObjyObject*	objyObjectStorageCreateObject( ObjyObjectStorage* objects, ObjyId id, const ObjyType* structType );
+void		objyObjectStorageDestroyObject( ObjyObjectStorage* objects, ObjyObject* object );
+bool		objyObjectStorageRegisterObject( ObjyObjectStorage* objects, ObjyObject* object );
+bool		objyObjectStorageUnregisterObject( ObjyObjectStorage* objects, ObjyObject* object );
+
+ObjyObject*	objyObjectStorageFind( ObjyObjectStorage* objects, ObjyId id );
