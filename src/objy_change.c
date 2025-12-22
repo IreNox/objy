@@ -30,12 +30,40 @@ void objyChangeStorageDestruct( ObjyChangeStorage* changes )
 	changes->lastChangeSet	= NULL;
 }
 
+void objyChangeStorageDestroyChangeSets( ObjyChangeStorage* changes )
+{
+	ObjyChangeSet* nextChangeSet = NULL;
+	for( ObjyChangeSet* changeSet = changes->lastOpenChangeSet; changeSet != NULL; changeSet = nextChangeSet )
+	{
+		nextChangeSet = changeSet->prevChangeSet;
+		objyChangeSetFree( changeSet );
+	}
+
+	for( ObjyChangeSet* changeSet = changes->lastDetachedChangeSet; changeSet != NULL; changeSet = nextChangeSet )
+	{
+		nextChangeSet = changeSet->prevChangeSet;
+		objyChangeSetFree( changeSet );
+	}
+
+	for( ObjyChangeSet* changeSet = changes->lastChangeSet; changeSet != NULL; changeSet = nextChangeSet )
+	{
+		nextChangeSet = changeSet->prevChangeSet;
+		objyChangeSetFree( changeSet );
+	}
+}
+
 ObjyChangeSet* objyChangeSetBegin( ObjyContext* context )
 {
 	ObjyChangeSet* changeSet = NULL;
 	const uint64 index = tikiPoolAllocateZero( &context->changes.changeSetPool, (void**)&changeSet );
 	if( index == TIKI_POOL_INVALID_INDEX )
 	{
+		return NULL;
+	}
+
+	if( !objyObjectStateContextConstruct( &changeSet->stateContext, context, context->currentState ) )
+	{
+		tikiPoolFree( &context->changes.changeSetPool, index );
 		return NULL;
 	}
 
@@ -92,6 +120,8 @@ bool objyChangeSetSubmit( ObjyChangeSet* changeSet )
 
 static void objyChangeSetFree( ObjyChangeSet* changeSet )
 {
+	objyObjectStateContextDestruct( &changeSet->stateContext );
+
 	for( uintsize i = 0; i < changeSet->changeCount; ++i )
 	{
 		objyChangeFree( changeSet, &changeSet->changes[ i ] );

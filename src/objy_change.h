@@ -2,6 +2,8 @@
 
 #include "objy/objy.h"
 
+#include "objy_object.h"
+
 #include "tiki_pool.h"
 
 typedef enum ObjyChangeType
@@ -59,7 +61,7 @@ struct ObjyChangeSet
 	uint64					index;
 
 	ObjyContext*			context;
-	ObjyContextState		state;
+	ObjyObjectStateContext	stateContext;
 
 	bool					isDetached;
 	bool					hasError;
@@ -79,7 +81,14 @@ typedef struct ObjyChangeStorage
 	TikiPool				changeSetPool;
 	ObjyChangeSet*			firstChangeSet;
 	ObjyChangeSet*			lastChangeSet;
+
+	ObjyChangeSet*			firstOpenChangeSet;
+	ObjyChangeSet*			lastOpenChangeSet;
+	ObjyChangeSet*			firstDetachedChangeSet;
+	ObjyChangeSet*			lastDetachedChangeSet;
 } ObjyChangeStorage;
 
 void	objyChangeStorageConstruct( ObjyChangeStorage* changes, TikiAllocator* allocator );
 void	objyChangeStorageDestruct( ObjyChangeStorage* changes );
+
+void	objyChangeStorageDestroyChangeSets( ObjyChangeStorage* changes );

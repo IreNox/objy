@@ -25,7 +25,7 @@ struct ObjyObject
 	ObjyObject*				nextSibling;
 	uintsize				childCount;
 
-	ObjyValue*				rootValue;
+	//ObjyValue*				rootValue;
 };
 
 typedef struct ObjyObjectState
@@ -33,10 +33,20 @@ typedef struct ObjyObjectState
 	ObjyId					id;
 	uint64					index;
 
+	bool					isNewObject;
 	ObjyObject*				object;
-
 	ObjyValue*				value;
 } ObjyObjectState;
+
+typedef struct ObjyObjectStateContext
+{
+	ObjyContext*					context;
+
+	struct ObjyObjectStateContext*	parentState;
+
+	TikiHashMap						idMap;
+} ObjyObjectStateContext;
+
 
 typedef struct ObjyObjectStorage
 {
@@ -56,3 +66,6 @@ ObjyObject*	objyObjectStorageFind( ObjyObjectStorage* objects, ObjyId id );
 
 ObjyObject*	objyObjectAddToParent( ObjyObject* object, ObjyObject* parent );
 ObjyObject*	objyObjectRemoveFromParent( ObjyObject* object );
+
+bool		objyObjectStateContextConstruct( ObjyObjectStateContext* state, ObjyContext* context, ObjyObjectStateContext* parentState );
+void		objyObjectStateContextDestruct( ObjyObjectStateContext* state );

@@ -67,6 +67,10 @@ ObjyContext* objyContextCreate( ObjySystem* system, ObjyObject* parentObject )
 	objyValueStorageConstruct( &context->values, context->allocator );
 	objyChangeStorageConstruct( &context->changes, context->allocator );
 
+	tikiPoolConstruct( &context->statePool, context->allocator, sizeof( ObjyObjectState ), OBJY_OBJECT_STATE_CHUNK_SIZE );
+	objyObjectStateContextConstruct( &context->baseState, context, NULL );
+	context->currentState = &context->baseState;
+
 	return context;
 }
 
@@ -76,6 +80,11 @@ void objyContextDestroy( ObjyContext* context )
 	{
 		return;
 	}
+
+	objyChangeStorageDestroyChangeSets( &context->changes );
+
+	objyObjectStateContextDestruct( &context->baseState );
+	tikiPoolDestruct( &context->statePool );
 
 	objyObjectStorageDestruct( &context->objects );
 	objyValueStorageDestruct( &context->values );

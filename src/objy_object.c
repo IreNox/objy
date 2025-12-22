@@ -9,6 +9,9 @@ static bool			objyObjectIdMapIsKeyEquals( const void* lhs, const void* rhs );
 
 static ObjyValue*	objyObjectFindValueInternal( ObjyValue* value, TikiStringView path );
 
+static TikiHash		objyObjectStateIdMapHash( const void* entry );
+static bool			objyObjectStateIdMapIsKeyEquals( const void* lhs, const void* rhs );
+
 bool objyObjectStorageConstruct( ObjyObjectStorage* objects, TikiAllocator* allocator )
 {
 	objects->allocator = allocator;
@@ -105,7 +108,7 @@ void objyObjectStorageDestroyObject( ObjyContext* context, ObjyObject* object )
 
 	objyObjectRemoveFromParent( object );
 
-	objyValueDestroy( context, object->rootValue );
+	//objyValueDestroy( context, object->rootValue );
 	tikiMemoryFree( context->allocator, object->name.data );
 
 	memset( object, 0, sizeof( *object ) );
@@ -383,24 +386,76 @@ static ObjyValue* objyObjectFindValueInternal( ObjyValue* value, TikiStringView 
 const ObjyValue* objyObjectFindValue( const ObjyObject* object, const char* path )
 {
 	const TikiStringView pathView = tikiStringViewCreateFromPointer( path );
-	return objyObjectFindValueInternal( object->rootValue, pathView );
+	const ObjyValue* rootValue = objyObjectGetValue( object );
+	return objyObjectFindValueInternal( rootValue, pathView );
 }
 
 const ObjyValue* objyObjectFindValueLength( const ObjyObject* object, const char* path, size_t pathLength )
 {
 	const TikiStringView pathView = tikiStringViewCreate( path, pathLength );
-	return objyObjectFindValueInternal( object->rootValue, pathView );
+	const ObjyValue* rootValue = objyObjectGetValue( object );
+	return objyObjectFindValueInternal( rootValue, pathView );
+}
+
+bool objyObjectStateContextConstruct( ObjyObjectStateContext* state, ObjyContext* context, ObjyObjectStateContext* parentState )
+{
+	if( !tikiHashMapConstructSize( &state->idMap, context->allocator, sizeof( state ), objyObjectStateIdMapHash, objyObjectStateIdMapIsKeyEquals, 16u ) )
+	{
+		return false;
+	}
+
+	state->context		= context;
+	state->parentState	= parentState;
+
+	return true;
+
+}
+void objyObjectStateContextDestruct( ObjyObjectStateContext* state )
+{
+	for( uintsize i = tikiHashMapFindFirstIndex( &state->idMap ); i = TIKI_HASH_MAP_INVALID_INDEX; i = tikiHashMapFindNextIndex( &state->idMap, i ) )
+	{
+		ObjyObjectState* objectState = *(ObjyObjectState**)tikiHashMapGetEntry( &state->idMap, i );
+
+		if( objectState->isNewObject )
+		{
+			objyObjectStorageDestroyObject( state->context, objectState->object );
+			objectState->object = NULL;
+		}
+
+		objyValueStorageFree( &state->context->values, objectState->value );
+		objectState->value = NULL;
+
+		tikiPoolFree( &state->context->statePool, objectState->index );
+	}
+
+	tikiHashMapDestruct( &state->idMap );
+
+	state->parentState	= NULL;
+	state->context		= NULL;
 }
 
 static TikiHash objyObjectIdMapHash( const void* entry )
 {
-	const ObjyObject* object = (const ObjyObject*)entry;
+	const ObjyObject* object = *(const ObjyObject**)entry;
 	return tikiHashMurmur3( &object->id, sizeof( object->id ) );
 }
 
 static bool objyObjectIdMapIsKeyEquals( const void* lhs, const void* rhs )
 {
-	const ObjyObject* lhsObject = (const ObjyObject*)lhs;
-	const ObjyObject* rhsObject = (const ObjyObject*)rhs;
+	const ObjyObject* lhsObject = *(const ObjyObject**)lhs;
+	const ObjyObject* rhsObject = *(const ObjyObject**)rhs;
 	return memcmp( &lhsObject->id, &rhsObject->id, sizeof( lhsObject->id ) ) == 0;
+}
+
+static TikiHash objyObjectStateIdMapHash( const void* entry )
+{
+	const ObjyObjectState* objectState = *(const ObjyObjectState**)entry;
+	return tikiHashMurmur3( &objectState->id, sizeof( objectState->id ) );
+}
+
+static bool objyObjectStateIdMapIsKeyEquals( const void* lhs, const void* rhs )
+{
+	const ObjyObjectState* lhsState = *(const ObjyObjectState**)lhs;
+	const ObjyObjectState* rhsState = *(const ObjyObjectState**)rhs;
+	return memcmp( &lhsState->id, &rhsState->id, sizeof( lhsState->id ) ) == 0;
 }

@@ -18,41 +18,36 @@
 #	define OBJY_OBJECT_CHUNK_SIZE 1024
 #endif
 
+#ifndef OBJY_OBJECT_STATE_CHUNK_SIZE
+#	define OBJY_OBJECT_STATE_CHUNK_SIZE 1024
+#endif
+
 struct ObjySystem
 {
-	TikiAllocator		allocator;
+	TikiAllocator			allocator;
 
-	ObjyTypeCollection	types;
+	ObjyTypeCollection		types;
 
-	TikiPool			contextPool;
-	ObjyContext*		rootContext;
+	TikiPool				contextPool;
+	ObjyContext*			rootContext;
 };
-
-typedef struct ObjyContextState
-{
-	TikiAllocator*				allocator;
-
-	struct ObjyContextState*	parentState;
-
-	TikiHashMap					idMap;
-} ObjyContextState;
 
 struct ObjyContext
 {
-	TikiAllocator*		allocator;
-	ObjySystem*			system;
+	TikiAllocator*			allocator;
+	ObjySystem*				system;
 
-	uint64				index;
+	uint64					index;
 
-	ObjyObjectStorage	objects;
-	ObjyValueStorage	values;
-	ObjyChangeStorage	changes;
+	ObjyObjectStorage		objects;
+	ObjyValueStorage		values;
+	ObjyChangeStorage		changes;
 
-	ObjyObject*			rootObject;
+	ObjyObject*				rootObject;
 
-	TikiPool			statePool;
-	ObjyContextState	baseState;
-	ObjyContextState*	currentState;
+	TikiPool				statePool;
+	ObjyObjectStateContext	baseState;
+	ObjyObjectStateContext*	currentState;
 };
 
 // TODO
