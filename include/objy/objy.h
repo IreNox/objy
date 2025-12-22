@@ -230,8 +230,8 @@ bool					objyChangeSetDeserializeMerge( ObjyChangeSet* changeSet, ObjyBlob data,
 
 bool					objyChangeSetIsValid( const ObjyChangeSet* changeSet );
 
-ObjyObject*				objyChangeSetObjectCreate( ObjyChangeSet* changeSet, ObjyId id, const ObjyType* structType, ObjyId parentId );
-ObjyObject*				objyChangeSetObjectCreateValue( ObjyChangeSet* changeSet, ObjyId id, const ObjyType* structType, ObjyId parentId, ObjyValue* initValue );
+ObjyObject*				objyChangeSetObjectCreate( ObjyChangeSet* changeSet, ObjyId id, const char* name, const ObjyType* structType, ObjyId parentId );
+ObjyObject*				objyChangeSetObjectCreateValue( ObjyChangeSet* changeSet, ObjyId id, const char* name, size_t nameLength, const ObjyType* structType, ObjyId parentId, ObjyValue* initValue );
 void					objyChangeSetObjectDelete( ObjyChangeSet* changeSet, ObjyObject* object );
 void					objyChangeSetObjectDeleteId( ObjyChangeSet* changeSet, ObjyId objectId );
 void					objyChangeSetObjectMove( ObjyChangeSet* changeSet, ObjyObject* object, ObjyObject* newParent );

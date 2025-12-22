@@ -7,7 +7,6 @@
 static TikiHash		objyObjectIdMapHash( const void* entry );
 static bool			objyObjectIdMapIsKeyEquals( const void* lhs, const void* rhs );
 
-static ObjyObject*	objyObjectFindInternal( ObjyContext* context, ObjyId id );
 static ObjyValue*	objyObjectFindValueInternal( ObjyValue* value, TikiStringView path );
 
 bool objyObjectStorageConstruct( ObjyObjectStorage* objects, TikiAllocator* allocator )
@@ -25,23 +24,7 @@ void objyObjectStorageDestruct( ObjyObjectStorage* objects )
 	tikiPoolDestruct( &objects->pool );
 }
 
-ObjyObject* objyObjectStorageCreateObject( ObjyObjectStorage* objects, ObjyId id, const ObjyType* structType )
-{
-	if( !structType )
-	{
-		TIKI_DEBUG_ERROR( "Can't create object no type given." );
-		return NULL;
-	}
-	else if( structType->kind != ObjyTypeKind_Struct )
-	{
-		TIKI_DEBUG_ERROR( "Can't create object from non struct type." );
-		return NULL;
-	}
-
-#pragma message( "objyObjectStorageCreateObject: not implemented" )
-}
-
-ObjyObject* objyObjectCreateDetached( ObjyContext* context, ObjyId id, const char* name, const ObjyType* structType )
+ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, TikiStringView name, const ObjyType* structType, ObjyId parentId )
 {
 	if( !objyIdIsValid( id ) )
 	{
@@ -54,16 +37,32 @@ ObjyObject* objyObjectCreateDetached( ObjyContext* context, ObjyId id, const cha
 		return NULL;
 	}
 
-	if( !name )
+	if( !name.length )
 	{
 		TIKI_DEBUG_ERROR( "Object needs a name." );
 		return NULL;
 	}
 
-	if( !structType || structType->kind != ObjyTypeKind_Struct )
+	if( !structType )
 	{
-		TIKI_DEBUG_ERROR( "Invalid type to create object." );
+		TIKI_DEBUG_ERROR( "Can't create object no type given." );
 		return NULL;
+	}
+	else if( structType->kind != ObjyTypeKind_Struct )
+	{
+		TIKI_DEBUG_ERROR( "Can't create object from non struct type." );
+		return NULL;
+	}
+
+	ObjyObject* parent = objyObjectStorageFind( &context->objects, parentId );
+	if( objyIdIsValid( parentId ) )
+	{
+		parent = objyObjectStorageFind( &context->objects, parentId );
+		if( !parent )
+		{
+			TIKI_DEBUG_ERROR( "Could not find parent object with id '" OBJY_ID_FORMAT_STRING "' to create child object.", OBJY_ID_FORMAT_DATA( parentId ) );
+			return NULL;
+		}
 	}
 
 	ObjyObject* object;
@@ -74,34 +73,28 @@ ObjyObject* objyObjectCreateDetached( ObjyContext* context, ObjyId id, const cha
 		return NULL;
 	}
 
-	const uintsize nameLength = strlen( name );
-	char* nameCopy = (char*)tikiMemoryAlloc( context->allocator, nameLength + 1 );
-	if( !nameCopy )
+	object->id			= id;
+	object->index		= index;
+	object->context		= context;
+	object->type		= structType;
+	object->name		= tikiStringViewAllocateCopy( context->allocator, name );
+	object->rootValue	= objyValueCreateStruct( context, structType );
+
+	if( !object->name.data )
 	{
 		TIKI_DEBUG_ERROR( "Failed to allocate object name." );
 		tikiPoolFree( &context->objects.pool, index );
 		return NULL;
 	}
 
-	strcpy( nameCopy, name );
-
-	object->id			= id;
-	object->index		= index;
-	object->context		= context;
-	//object->parent		= parent;
-	object->type		= structType;
-	object->name.data	= nameCopy;
-	object->name.length	= nameLength;
-	object->rootValue	= objyValueCreateStruct( context, structType );
-
-	// add to parent
+	objyObjectAddToParent( object, parent );
 
 	tikiHashMapInsert( &context->objects.idMap, object );
 
 	return object;
 }
 
-void objyObjectDestroy( ObjyContext* context, ObjyObject* object )
+void objyObjectStorageDestroyObject( ObjyContext* context, ObjyObject* object )
 {
 	if( !object )
 	{
@@ -110,13 +103,85 @@ void objyObjectDestroy( ObjyContext* context, ObjyObject* object )
 
 	tikiHashMapRemove( &context->objects.idMap, object );
 
-	// remove from parent
+	objyObjectRemoveFromParent( object );
 
 	objyValueDestroy( context, object->rootValue );
 	tikiMemoryFree( context->allocator, object->name.data );
 
 	memset( object, 0, sizeof( *object ) );
 	tikiPoolFree( &context->objects.pool, object->index );
+}
+
+ObjyObject* objyObjectStorageFind( ObjyObjectStorage* objects, ObjyId id )
+{
+	ObjyObject** objectEntry = (ObjyObject**)tikiHashMapFind( &objects->idMap, &id );
+	if( !objectEntry )
+	{
+		return NULL;
+	}
+
+	return *objectEntry;
+}
+
+ObjyObject*	objyObjectAddToParent( ObjyObject* object, ObjyObject* parent )
+{
+	TIKI_ASSERT( object->parent == NULL );
+
+	object->parent = parent;
+
+	if( parent )
+	{
+		if( parent->lastChild )
+		{
+			parent->lastChild->nextSibling = object;
+			object->prevSibling = parent->lastChild;
+			parent->lastChild = object;
+		}
+		else
+		{
+			parent->firstChild = object;
+			parent->lastChild = object;
+		}
+	}
+}
+
+ObjyObject*	objyObjectRemoveFromParent( ObjyObject* object )
+{
+	ObjyObject* oldParent = object->parent;
+	if( oldParent )
+	{
+		if( oldParent->firstChild == object )
+		{
+			oldParent->firstChild = object->nextSibling;
+		}
+
+		if( oldParent->lastChild == object )
+		{
+			oldParent->lastChild = object->prevSibling;
+		}
+	}
+
+	if( object->prevSibling )
+	{
+		object->prevSibling->nextSibling = object->nextSibling;
+		object->prevSibling = NULL;
+	}
+
+	if( object->nextSibling )
+	{
+		object->nextSibling->prevSibling = object->prevSibling;
+		object->nextSibling = NULL;
+	}
+}
+
+ObjyObject* objyObjectCreateDetached( ObjyContext* context, ObjyId id, const char* name, const ObjyType* structType )
+{
+	return objyObjectStorageCreateObject( context, id, tikiStringViewCreateFromPointer( name ), structType, ObjyIdInvalid );
+}
+
+void objyObjectDestroy( ObjyContext* context, ObjyObject* object )
+{
+	objyObjectStorageDestroyObject( context, object );
 }
 
 ObjyBlob objyObjectSerialize( ObjyContext* context, const ObjyObject* object, ObjyObjectFormatter* formatter )
@@ -132,7 +197,7 @@ ObjyObject* objyObjectDeserializeDetached( ObjyContext* context, ObjyBlob data, 
 		return NULL;
 	}
 
-	ObjyObject* object = objyObjectFindInternal( context, id );
+	ObjyObject* object = objyObjectStorageFind( &context->objects, id );
 	if( !object )
 	{
 		// create?
@@ -152,14 +217,15 @@ ObjyObject* objyObjectDeserializeDetached( ObjyContext* context, ObjyBlob data, 
 	return object;
 }
 
-static ObjyObject* objyObjectFindInternal( ObjyContext* context, ObjyId id )
-{
-	return (ObjyObject*)tikiHashMapFind( &context->objects.idMap, &id );
-}
-
 const ObjyObject* objyObjectFind( ObjyContext* context, ObjyId id )
 {
-	return (const ObjyObject*)tikiHashMapFind( &context->objects.idMap, &id );
+	const ObjyObject** objectEntry = (const ObjyObject**)tikiHashMapFind( &context->objects.idMap, &id );
+	if( !objectEntry )
+	{
+		return NULL;
+	}
+
+	return *objectEntry;
 }
 
 ObjyId objyObjectGetId( const ObjyObject* object )
@@ -229,7 +295,18 @@ ObjyValue* objyObjectGetValueWritable( ObjyObject* object )
 
 const ObjyValue* objyObjectGetValue( const ObjyObject* object )
 {
-	return object->rootValue;
+	for( ObjyContextState* contextState = object->context->currentState; contextState != NULL; contextState = contextState->parentState )
+	{
+		const ObjyObjectState** objectState = tikiHashMapFind( &contextState->idMap, &object->id );
+		if( !objectState )
+		{
+			continue;
+		}
+
+		return (*objectState)->value;
+	}
+
+	return NULL;
 }
 
 static ObjyValue* objyObjectFindValueInternal( ObjyValue* value, TikiStringView path )

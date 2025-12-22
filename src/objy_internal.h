@@ -28,6 +28,15 @@ struct ObjySystem
 	ObjyContext*		rootContext;
 };
 
+typedef struct ObjyContextState
+{
+	TikiAllocator*				allocator;
+
+	struct ObjyContextState*	parentState;
+
+	TikiHashMap					idMap;
+} ObjyContextState;
+
 struct ObjyContext
 {
 	TikiAllocator*		allocator;
@@ -40,6 +49,10 @@ struct ObjyContext
 	ObjyChangeStorage	changes;
 
 	ObjyObject*			rootObject;
+
+	TikiPool			statePool;
+	ObjyContextState	baseState;
+	ObjyContextState*	currentState;
 };
 
 // TODO

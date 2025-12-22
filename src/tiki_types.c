@@ -22,7 +22,7 @@ TikiStringView tikiStringViewCreateEmpty()
 
 TikiStringView tikiStringViewCreateFromPointer( const char* string )
 {
-	const TikiStringView result = { string, strlen( string ) };
+	const TikiStringView result = { string, string ? strlen( string ) : 0 };
 	return result;
 }
 

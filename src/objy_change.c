@@ -2,12 +2,12 @@
 
 static void			objyChangeSetFree( ObjyChangeSet* changeSet );
 
-static ObjyChange*	objyChangeCreateInternal( ObjyChangeSet* changeSet, ObjyChangeType type, ObjyObject* object );
+static ObjyChange*	objyChangeCreateInternal( ObjyChangeSet* changeSet, ObjyChangeType type, ObjyId objectId );
 static ObjyChange*	objyChangeWriteValueInternal( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, size_t pathLength, ObjyValue* newValue );
 static void			objyChangeFree( ObjyChangeSet* changeSet, ObjyChange* change );
 
 static bool			objyChangeApply( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject* object );
-static bool			objyChangeApplyCreate( ObjyChangeSet* changeSet, ObjyObject* object );
+static bool			objyChangeApplyCreate( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject* object );
 static bool			objyChangeApplyDelete( ObjyChangeSet* changeSet, ObjyObject* object );
 static bool			objyChangeApplyMove( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject* object );
 static bool			objyChangeApplyModify( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject* object );
@@ -142,15 +142,8 @@ bool objyChangeSetIsValid( const ObjyChangeSet* changeSet )
 	return !changeSet->hasError;
 }
 
-static ObjyChange* objyChangeCreateInternal( ObjyChangeSet* changeSet, ObjyChangeType type, ObjyObject* object )
+static ObjyChange* objyChangeCreateInternal( ObjyChangeSet* changeSet, ObjyChangeType type, ObjyId objectId )
 {
-	if( !object )
-	{
-		changeSet->hasError = true;
-		TIKI_DEBUG_ERROR( "Can't create change no object given." );
-		return NULL;
-	}
-
 	if( !TIKI_MEMORY_ARRAY_CHECK_CAPACITY_ZERO( changeSet->context->allocator, changeSet->changes, changeSet->changeCapacity, changeSet->changeCount + 1u ) )
 	{
 		TIKI_DEBUG_ERROR( "Can't allocate changes for change set." );
@@ -160,44 +153,41 @@ static ObjyChange* objyChangeCreateInternal( ObjyChangeSet* changeSet, ObjyChang
 
 	ObjyChange* change = &changeSet->changes[ changeSet->changeCount++ ];
 	change->type		= type;
-	change->objectId	= object->id;
+	change->objectId	= objectId;
 
 	return change;
 }
 
-ObjyObject* objyChangeSetObjectCreate( ObjyChangeSet* changeSet, ObjyId id, const ObjyType* structType, ObjyId parentId )
+ObjyObject* objyChangeSetObjectCreate( ObjyChangeSet* changeSet, ObjyId id, const char* name, const ObjyType* structType, ObjyId parentId )
 {
-	return objyChangeSetObjectCreateValue( changeSet, id, structType, parentId, NULL );
+	return objyChangeSetObjectCreateValue( changeSet, id, name, strlen( name ), structType, parentId, NULL );
 }
 
-ObjyObject* objyChangeSetObjectCreateValue( ObjyChangeSet* changeSet, ObjyId id, const ObjyType* structType, ObjyId parentId, ObjyValue* initValue )
+ObjyObject* objyChangeSetObjectCreateValue( ObjyChangeSet* changeSet, ObjyId id, const char* name, size_t nameLength, const ObjyType* structType, ObjyId parentId, ObjyValue* initValue )
 {
-	ObjyObject* object = NULL;
-	if( !changeSet->isDetached )
-	{
-		object = objyObjectStorageCreateObject( &changeSet->context->objects, id, structType );
-		if( !object )
-		{
-			TIKI_DEBUG_ERROR( "Can't create object." );
-			changeSet->hasError = true;
-			return NULL;
-		}
-	}
-
-	ObjyChange* change = objyChangeCreateInternal( changeSet, ObjyChangeType_Create, object );
+	ObjyChange* change = objyChangeCreateInternal( changeSet, ObjyChangeType_Create, id );
 	if( !change )
 	{
-		objyObjectStorageDestroyObject( &changeSet->context->objects, object );
 		return NULL;
 	}
 
 	ObjyChangeCreateData* createData = &change->data.create;
+	createData->name		= tikiStringViewAllocateCopyPointerLength( changeSet->context->allocator, name, nameLength );
 	createData->parentId	= parentId;
 	createData->typeName	= structType->name;
 	createData->initValue	= initValue;
 
-	if( !objyChangeApply( changeSet, change, object ) )
+	if( !objyChangeApply( changeSet, change, NULL ) )
 	{
+		changeSet->changeCount--;
+		return NULL;
+	}
+
+	ObjyObject* object = objyObjectStorageFind( &changeSet->context->objects, id );
+	if( !object )
+	{
+		TIKI_DEBUG_ERROR( "Can't find newly created object." );
+		changeSet->hasError = true;
 		changeSet->changeCount--;
 		return NULL;
 	}
@@ -207,7 +197,14 @@ ObjyObject* objyChangeSetObjectCreateValue( ObjyChangeSet* changeSet, ObjyId id,
 
 void objyChangeSetObjectDelete( ObjyChangeSet* changeSet, ObjyObject* object )
 {
-	ObjyChange* change = objyChangeCreateInternal( changeSet, ObjyChangeType_Delete, object );
+	if( !object )
+	{
+		changeSet->hasError = true;
+		TIKI_DEBUG_ERROR( "Can't create change no object given." );
+		return;
+	}
+
+	ObjyChange* change = objyChangeCreateInternal( changeSet, ObjyChangeType_Delete, object->id );
 	if( !change )
 	{
 		return;
@@ -233,7 +230,14 @@ void objyChangeSetObjectDeleteId( ObjyChangeSet* changeSet, ObjyId objectId )
 
 void objyChangeSetObjectMove( ObjyChangeSet* changeSet, ObjyObject* object, ObjyObject* newParent )
 {
-	ObjyChange* change = objyChangeCreateInternal( changeSet, ObjyChangeType_Delete, object );
+	if( !object )
+	{
+		changeSet->hasError = true;
+		TIKI_DEBUG_ERROR( "Can't create change no object given." );
+		return;
+	}
+
+	ObjyChange* change = objyChangeCreateInternal( changeSet, ObjyChangeType_Delete, object->id );
 	if( !change )
 	{
 		changeSet->hasError = true;
@@ -252,7 +256,14 @@ void objyChangeSetObjectMove( ObjyChangeSet* changeSet, ObjyObject* object, Objy
 
 static ObjyChange* objyChangeWriteValueInternal( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, size_t pathLength, ObjyValue* newValue )
 {
-	ObjyChange* change =objyChangeCreateInternal( changeSet, ObjyChangeType_Modify, object );
+	if( !object )
+	{
+		changeSet->hasError = true;
+		TIKI_DEBUG_ERROR( "Can't create change no object given." );
+		return NULL;
+	}
+
+	ObjyChange* change = objyChangeCreateInternal( changeSet, ObjyChangeType_Modify, object->id );
 	if( !change )
 	{
 		return NULL;
@@ -306,7 +317,7 @@ static bool objyChangeApply( ObjyChangeSet* changeSet, ObjyChange* change, ObjyO
 	switch( change->type )
 	{
 	case ObjyChangeType_Create:
-		result = objyChangeApplyCreate( changeSet, object );
+		result = objyChangeApplyCreate( changeSet, change, object );
 		break;
 
 	case ObjyChangeType_Delete:
@@ -334,18 +345,22 @@ static bool objyChangeApply( ObjyChangeSet* changeSet, ObjyChange* change, ObjyO
 	return false;
 }
 
-static bool objyChangeApplyCreate( ObjyChangeSet* changeSet, ObjyObject* object )
+static bool objyChangeApplyCreate( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject* object )
 {
-	return objyObjectStorageRegisterObject( &changeSet->context->objects, object );
+	ObjyChangeCreateData* createData = &change->data.create;
+
+	ObjyObject* object = objyObjectStorageCreateObject( changeSet->context, createData->id, createData->name, createData->typeName, createData->parentId );
+	if( !object )
+	{
+		changeSet->hasError = true;
+		return false;
+	}
+
+	return true;
 }
 
 static bool objyChangeApplyDelete( ObjyChangeSet* changeSet, ObjyObject* object )
 {
-	if( !objyObjectStorageUnregisterObject( &changeSet->context->objects, object ) )
-	{
-		return false;
-	}
-
 	objyObjectStorageDestroyObject( &changeSet->context->objects, object );
 	return true;
 }
@@ -363,48 +378,8 @@ static bool objyChangeApplyMove( ObjyChangeSet* changeSet, ObjyChange* change, O
 		}
 	}
 
-	ObjyObject* oldParent = object->parent;
-	if( oldParent )
-	{
-		if( oldParent->firstChild == object )
-		{
-			oldParent->firstChild = object->nextSibling;
-		}
-
-		if( oldParent->lastChild == object )
-		{
-			oldParent->lastChild = object->prevSibling;
-		}
-	}
-
-	if( object->prevSibling )
-	{
-		object->prevSibling->nextSibling = object->nextSibling;
-		object->prevSibling = NULL;
-	}
-
-	if( object->nextSibling )
-	{
-		object->nextSibling->prevSibling = object->prevSibling;
-		object->nextSibling = NULL;
-	}
-
-	object->parent = newParent;
-
-	if( newParent )
-	{
-		if( newParent->lastChild )
-		{
-			newParent->lastChild->nextSibling = object;
-			object->prevSibling = newParent->lastChild;
-			newParent->lastChild = object;
-		}
-		else
-		{
-			newParent->firstChild = object;
-			newParent->lastChild = object;
-		}
-	}
+	objyObjectRemoveFromParent( object );
+	objyObjectAddToParent( object, newParent );
 
 	return true;
 }

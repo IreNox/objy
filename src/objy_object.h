@@ -28,6 +28,16 @@ struct ObjyObject
 	ObjyValue*				rootValue;
 };
 
+typedef struct ObjyObjectState
+{
+	ObjyId					id;
+	uint64					index;
+
+	ObjyObject*				object;
+
+	ObjyValue*				value;
+} ObjyObjectState;
+
 typedef struct ObjyObjectStorage
 {
 	TikiAllocator*		allocator;
@@ -39,9 +49,10 @@ typedef struct ObjyObjectStorage
 bool		objyObjectStorageConstruct( ObjyObjectStorage* objects, TikiAllocator* allocator );
 void		objyObjectStorageDestruct( ObjyObjectStorage* objects );
 
-ObjyObject*	objyObjectStorageCreateObject( ObjyObjectStorage* objects, ObjyId id, const ObjyType* structType );
-void		objyObjectStorageDestroyObject( ObjyObjectStorage* objects, ObjyObject* object );
-bool		objyObjectStorageRegisterObject( ObjyObjectStorage* objects, ObjyObject* object );
-bool		objyObjectStorageUnregisterObject( ObjyObjectStorage* objects, ObjyObject* object );
+ObjyObject*	objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, TikiStringView name, const ObjyType* structType, ObjyId parentId );
+void		objyObjectStorageDestroyObject( ObjyContext* context, ObjyObject* object );
 
 ObjyObject*	objyObjectStorageFind( ObjyObjectStorage* objects, ObjyId id );
+
+ObjyObject*	objyObjectAddToParent( ObjyObject* object, ObjyObject* parent );
+ObjyObject*	objyObjectRemoveFromParent( ObjyObject* object );

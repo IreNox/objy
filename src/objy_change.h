@@ -14,8 +14,10 @@ typedef enum ObjyChangeType
 
 typedef struct ObjyChangeCreateData
 {
-	TikiStringView			typeName;
+	ObjyId					id;
+	TikiStringView			name;
 	ObjyId					parentId;
+	TikiStringView			typeName;
 	ObjyValue*				initValue;
 } ObjyChangeCreateData;
 
@@ -57,6 +59,7 @@ struct ObjyChangeSet
 	uint64					index;
 
 	ObjyContext*			context;
+	ObjyContextState		state;
 
 	bool					isDetached;
 	bool					hasError;
