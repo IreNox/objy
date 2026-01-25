@@ -49,3 +49,5 @@ void				objyTypeCollectionDestruct( ObjyTypeCollection* types );
 const ObjyType*		objyTypeCollectionFind( ObjyTypeCollection* types, const char* name );
 
 const char*			objyTypeKindGetString( ObjyTypeKind kind );
+
+const ObjyType*		objyTypeFindPathType( const ObjyType* type, TikiStringView path );

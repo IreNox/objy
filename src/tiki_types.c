@@ -38,13 +38,15 @@ TikiStringView tikiStringViewAllocateCopyPointer( TikiAllocator* allocator, cons
 
 TikiStringView tikiStringViewAllocateCopyPointerLength( TikiAllocator* allocator, const char* string, uintsize length )
 {
-	char* newString = tikiMemoryAlloc( allocator, length );
+	char* newString = tikiMemoryAlloc( allocator, length + 1 );
 	if( !newString )
 	{
 		return tikiStringViewCreateEmpty();
 	}
 
 	memcpy( newString, string, length );
+	newString[ length ] = '\0';
+
 	return tikiStringViewCreate( newString, length );
 }
 
@@ -60,4 +62,14 @@ bool tikiStringViewIsEquals( TikiStringView lhs, TikiStringView rhs )
 	}
 
 	return strncmp( lhs.data, rhs.data, lhs.length ) == 0;
+}
+
+bool tikiStringViewIsEqualsStr( TikiStringView lhs, const char* rhs )
+{
+	if( !lhs.data || !rhs )
+	{
+		return lhs.length == 0;
+	}
+
+	return strncmp( lhs.data, rhs, lhs.length ) == 0;
 }

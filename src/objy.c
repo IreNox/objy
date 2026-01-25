@@ -6,6 +6,10 @@
 
 #include <string.h>
 
+#ifdef _WIN32
+#	include <Objbase.h>
+#endif
+
 ObjySystem* objyCreate( const ObjyParameters* parameters )
 {
 	TikiAllocator allocator;
@@ -14,6 +18,13 @@ ObjySystem* objyCreate( const ObjyParameters* parameters )
 	ObjySystem* system = TIKI_MEMORY_NEW_ZERO( &allocator, ObjySystem );
 
 	tikiMemoryAllocatorFinalize( &system->allocator, &allocator );
+	tikiPoolConstruct( &system->contextPool, &system->allocator, sizeof( ObjyContext ), OBJY_CONTEXT_CHUNK_SIZE );
+
+	if( !objyTypeCollectionConstruct( &system->types, &system->allocator ) )
+	{
+		objyDestroy( system );
+		return NULL;
+	}
 
 	system->rootContext = objyContextCreate( system, NULL );
 
@@ -57,6 +68,7 @@ ObjyContext* objyContextCreate( ObjySystem* system, ObjyObject* parentObject )
 	context->allocator	= &system->allocator;
 	context->system		= system;
 	context->index		= index;
+	context->rootObject	= parentObject;
 
 	if( !objyObjectStorageConstruct( &context->objects, context->allocator ) )
 	{
@@ -96,4 +108,20 @@ void objyContextDestroy( ObjyContext* context )
 bool objyIdIsValid( ObjyId id )
 {
 	return memcmp( &id, &ObjyIdInvalid, sizeof( id ) ) != 0;
+}
+
+bool objyIdIsEqual( ObjyId lhs, ObjyId rhs )
+{
+	return memcmp( &lhs, &rhs, sizeof( lhs ) ) == 0;
+}
+
+void objyIdCreate( ObjyId* id )
+{
+#ifdef _WIN32
+	GUID guid;
+	TIKI_VERIFY( SUCCEEDED( CoCreateGuid( &guid ) )  );
+	memcpy( id, &guid, sizeof( *id ) );
+#else
+#	error Platform not implemented
+#endif
 }

@@ -34,7 +34,9 @@ ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, Tiki
 		TIKI_DEBUG_ERROR( "Invalid ID to create object." );
 		return NULL;
 	}
-	else if( tikiHashMapFind( &context->objects.idMap, &id ) )
+
+	const ObjyId* mapId = &id;
+	if( tikiHashMapFind( &context->objects.idMap, &mapId ) )
 	{
 		TIKI_DEBUG_ERROR( "A object with the given ID already exists." );
 		return NULL;
@@ -57,14 +59,22 @@ ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, Tiki
 		return NULL;
 	}
 
-	ObjyObject* parent = objyObjectStorageFind( &context->objects, parentId );
+	ObjyObject* parent = NULL;
 	if( objyIdIsValid( parentId ) )
 	{
 		parent = objyObjectStorageFind( &context->objects, parentId );
 		if( !parent )
 		{
-			TIKI_DEBUG_ERROR( "Could not find parent object with id '" OBJY_ID_FORMAT_STRING "' to create child object.", OBJY_ID_FORMAT_DATA( parentId ) );
-			return NULL;
+			if( context->rootObject &&
+				objyIdIsEqual( parentId, context->rootObject->id ) )
+			{
+				parent = context->rootObject;
+			}
+			else
+			{
+				TIKI_DEBUG_ERROR( "Could not find parent object with id '" OBJY_ID_FORMAT_STRING "' to create child object.", OBJY_ID_FORMAT_DATA( parentId ) );
+				return NULL;
+			}
 		}
 	}
 
@@ -81,7 +91,7 @@ ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, Tiki
 	object->context		= context;
 	object->type		= structType;
 	object->name		= tikiStringViewAllocateCopy( context->allocator, name );
-	object->rootValue	= objyValueCreateStruct( context, structType );
+	//object->rootValue	= objyValueCreateStruct( context, structType );
 
 	if( !object->name.data )
 	{
@@ -92,7 +102,7 @@ ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, Tiki
 
 	objyObjectAddToParent( object, parent );
 
-	tikiHashMapInsert( &context->objects.idMap, object );
+	tikiHashMapInsert( &context->objects.idMap, &object );
 
 	return object;
 }
@@ -104,7 +114,11 @@ void objyObjectStorageDestroyObject( ObjyContext* context, ObjyObject* object )
 		return;
 	}
 
-	tikiHashMapRemove( &context->objects.idMap, object );
+	if( !tikiHashMapRemove( &context->objects.idMap, &object ) )
+	{
+		TIKI_DEBUG_ERROR( "Object is not part of the given context." );
+		return;
+	}
 
 	objyObjectRemoveFromParent( object );
 
@@ -117,7 +131,8 @@ void objyObjectStorageDestroyObject( ObjyContext* context, ObjyObject* object )
 
 ObjyObject* objyObjectStorageFind( ObjyObjectStorage* objects, ObjyId id )
 {
-	ObjyObject** objectEntry = (ObjyObject**)tikiHashMapFind( &objects->idMap, &id );
+	const ObjyId* mapSearchKey = &id;
+	ObjyObject** objectEntry = (ObjyObject**)tikiHashMapFind( &objects->idMap, &mapSearchKey );
 	if( !objectEntry )
 	{
 		return NULL;
@@ -126,7 +141,7 @@ ObjyObject* objyObjectStorageFind( ObjyObjectStorage* objects, ObjyId id )
 	return *objectEntry;
 }
 
-ObjyObject*	objyObjectAddToParent( ObjyObject* object, ObjyObject* parent )
+void objyObjectAddToParent( ObjyObject* object, ObjyObject* parent )
 {
 	TIKI_ASSERT( object->parent == NULL );
 
@@ -148,7 +163,7 @@ ObjyObject*	objyObjectAddToParent( ObjyObject* object, ObjyObject* parent )
 	}
 }
 
-ObjyObject*	objyObjectRemoveFromParent( ObjyObject* object )
+void objyObjectRemoveFromParent( ObjyObject* object )
 {
 	ObjyObject* oldParent = object->parent;
 	if( oldParent )
@@ -207,28 +222,24 @@ ObjyObject* objyObjectDeserializeDetached( ObjyContext* context, ObjyBlob data, 
 		return NULL;
 	}
 
-	ObjyValue* newRootValue = objyValueCreateCopy( context, object->rootValue );
+	ObjyValue* rootValue = objyObjectStateContextFind( context->currentState, id );
+	ObjyValue* newRootValue = objyValueCreateCopy( context, rootValue );
 	if( !formatter->deserializeFunc( object, newRootValue, data, formatter->userData ) )
 	{
 		objyValueDestroy( context, newRootValue );
 		return NULL;
 	}
 
-	objyValueDestroy( context, object->rootValue );
-	object->rootValue = newRootValue;
+	//objyValueDestroy( context, object->rootValue );
+	//object->rootValue = newRootValue;
+	objyObjectStateContextSet( context->currentState, object, newRootValue, false );
 
 	return object;
 }
 
 const ObjyObject* objyObjectFind( ObjyContext* context, ObjyId id )
 {
-	const ObjyObject** objectEntry = (const ObjyObject**)tikiHashMapFind( &context->objects.idMap, &id );
-	if( !objectEntry )
-	{
-		return NULL;
-	}
-
-	return *objectEntry;
+	return objyObjectStorageFind( &context->objects, id );
 }
 
 ObjyId objyObjectGetId( const ObjyObject* object )
@@ -293,20 +304,20 @@ const ObjyObject* objyObjectFindChildByName( const ObjyObject* object, const cha
 
 ObjyValue* objyObjectGetValueWritable( ObjyObject* object )
 {
-	return object->rootValue;
+	return objyObjectStateContextFind( object->context->currentState, object->id );
 }
 
 const ObjyValue* objyObjectGetValue( const ObjyObject* object )
 {
-	for( ObjyContextState* contextState = object->context->currentState; contextState != NULL; contextState = contextState->parentState )
+	for( ObjyObjectStateContext* contextState = object->context->currentState; contextState != NULL; contextState = contextState->parentState )
 	{
-		const ObjyObjectState** objectState = tikiHashMapFind( &contextState->idMap, &object->id );
-		if( !objectState )
+		const ObjyValue* value = objyObjectStateContextFind( contextState, object->id );
+		if( !value )
 		{
 			continue;
 		}
 
-		return (*objectState)->value;
+		return value;
 	}
 
 	return NULL;
@@ -379,7 +390,7 @@ static ObjyValue* objyObjectFindValueInternal( ObjyValue* value, TikiStringView 
 		return objyObjectFindValueInternal( field->value, tikiStringViewCreateBeginEnd( fieldEnd + endAdd, path.data + path.length ) );
 	}
 
-	TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Struct field '%.*s' not found. Path: %.*s", fieldView.length, fieldView.data, path.length, path.data );
+	TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: struct field '%.*s' not found. Path: %.*s", fieldView.length, fieldView.data, path.length, path.data );
 	return NULL;
 }
 
@@ -387,51 +398,124 @@ const ObjyValue* objyObjectFindValue( const ObjyObject* object, const char* path
 {
 	const TikiStringView pathView = tikiStringViewCreateFromPointer( path );
 	const ObjyValue* rootValue = objyObjectGetValue( object );
-	return objyObjectFindValueInternal( rootValue, pathView );
+	return objyObjectFindValueInternal( (ObjyValue*)rootValue, pathView );
 }
 
 const ObjyValue* objyObjectFindValueLength( const ObjyObject* object, const char* path, size_t pathLength )
 {
 	const TikiStringView pathView = tikiStringViewCreate( path, pathLength );
 	const ObjyValue* rootValue = objyObjectGetValue( object );
-	return objyObjectFindValueInternal( rootValue, pathView );
+	return objyObjectFindValueInternal( (ObjyValue*)rootValue, pathView );
 }
 
-bool objyObjectStateContextConstruct( ObjyObjectStateContext* state, ObjyContext* context, ObjyObjectStateContext* parentState )
+bool objyObjectStateContextConstruct( ObjyObjectStateContext* stateContext, ObjyContext* context, ObjyObjectStateContext* parentState )
 {
-	if( !tikiHashMapConstructSize( &state->idMap, context->allocator, sizeof( state ), objyObjectStateIdMapHash, objyObjectStateIdMapIsKeyEquals, 16u ) )
+	if( !tikiHashMapConstructSize( &stateContext->idMap, context->allocator, sizeof( ObjyObjectState* ), objyObjectStateIdMapHash, objyObjectStateIdMapIsKeyEquals, 16u ) )
 	{
 		return false;
 	}
 
-	state->context		= context;
-	state->parentState	= parentState;
+	stateContext->context		= context;
+	stateContext->parentState	= parentState;
 
 	return true;
 
 }
-void objyObjectStateContextDestruct( ObjyObjectStateContext* state )
+void objyObjectStateContextDestruct( ObjyObjectStateContext* stateContext )
 {
-	for( uintsize i = tikiHashMapFindFirstIndex( &state->idMap ); i = TIKI_HASH_MAP_INVALID_INDEX; i = tikiHashMapFindNextIndex( &state->idMap, i ) )
+	for( uintsize i = tikiHashMapFindFirstIndex( &stateContext->idMap ); i != TIKI_HASH_MAP_INVALID_INDEX; i = tikiHashMapFindNextIndex( &stateContext->idMap, i ) )
 	{
-		ObjyObjectState* objectState = *(ObjyObjectState**)tikiHashMapGetEntry( &state->idMap, i );
+		ObjyObjectState* objectState = *(ObjyObjectState**)tikiHashMapGetEntry( &stateContext->idMap, i );
 
 		if( objectState->isNewObject )
 		{
-			objyObjectStorageDestroyObject( state->context, objectState->object );
+			objyObjectStorageDestroyObject( stateContext->context, objectState->object );
 			objectState->object = NULL;
 		}
 
-		objyValueStorageFree( &state->context->values, objectState->value );
+		objyValueStorageFree( &stateContext->context->values, objectState->value );
 		objectState->value = NULL;
 
-		tikiPoolFree( &state->context->statePool, objectState->index );
+		tikiPoolFree( &stateContext->context->statePool, objectState->index );
 	}
 
-	tikiHashMapDestruct( &state->idMap );
+	tikiHashMapDestruct( &stateContext->idMap );
 
-	state->parentState	= NULL;
-	state->context		= NULL;
+	stateContext->parentState	= NULL;
+	stateContext->context		= NULL;
+}
+
+ObjyValue* objyObjectStateContextFind( ObjyObjectStateContext* stateContext, ObjyId id )
+{
+	const ObjyId* mapSearchKey = &id;
+	ObjyObjectState** objectState = (ObjyObjectState**)tikiHashMapFind( &stateContext->idMap, &mapSearchKey );
+	if( objectState )
+	{
+		return (*objectState)->value;
+	}
+
+	if( stateContext->parentState )
+	{
+		return objyObjectStateContextFind( stateContext->parentState, id );
+	}
+
+	return NULL;
+}
+
+ObjyValue* objyObjectStateContextFindOrCreate( ObjyObjectStateContext* stateContext, ObjyObject* object )
+{
+	ObjyValue* value = objyObjectStateContextFind( stateContext, object->id );
+	if( value )
+	{
+		return value;
+	}
+
+	value = objyValueCreateStruct( stateContext->context, object->type );
+	if( !objyObjectStateContextSet( stateContext, object, value, false ) )
+	{
+		objyValueDestroy( stateContext->context, value );
+		return NULL;
+	}
+
+	return value;
+}
+
+bool objyObjectStateContextSet( ObjyObjectStateContext* stateContext, ObjyObject* object, ObjyValue* value, bool isNewObject )
+{
+	bool isNew;
+	ObjyObjectState** mapObjectState = tikiHashMapInsertNew( &stateContext->idMap, &object, &isNew );
+	if( !mapObjectState )
+	{
+		return false;
+	}
+
+	ObjyObjectState* objectState;
+	if( !isNew )
+	{
+		objectState = *mapObjectState;
+		if( objectState->value )
+		{
+			objyValueStorageFree( &stateContext->context->values, objectState->value );
+		}
+
+		objectState->value = value;
+		return true;
+	}
+
+	const uint64 index = tikiPoolAllocateZero( &stateContext->context->statePool, &objectState );
+	if( index == TIKI_POOL_INVALID_INDEX )
+	{
+		return false;
+	}
+
+	objectState->id				= object->id;
+	objectState->index			= index;
+	objectState->object			= object;
+	objectState->isNewObject	= isNewObject;
+	objectState->value			= value;
+
+	*mapObjectState = objectState;
+	return true;
 }
 
 static TikiHash objyObjectIdMapHash( const void* entry )

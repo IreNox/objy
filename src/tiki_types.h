@@ -6,7 +6,11 @@
 #include <stdint.h>
 #include <string.h>
 
-#ifdef _DEBUG
+#if (defined( _DEBUG ) || defined( DEBUG )) && !defined( NDEBUG )
+#	define TIKI_DEBUG
+#endif
+
+#ifdef TIKI_DEBUG
 #	include <assert.h>
 #endif
 
@@ -48,6 +52,8 @@ typedef struct TikiStringView
 	uintsize		length;
 } TikiStringView;
 
+#define TIKI_STRING_VIEW_DATA( str ) str.length, str.data
+
 TikiStringView	tikiStringViewCreate( const char* string, uintsize length );
 TikiStringView	tikiStringViewCreateBeginEnd( const char* begin, const char* end );
 TikiStringView	tikiStringViewCreateEmpty();
@@ -58,11 +64,14 @@ TikiStringView	tikiStringViewAllocateCopyPointer( TikiAllocator* allocator, cons
 TikiStringView	tikiStringViewAllocateCopyPointerLength( TikiAllocator* allocator, const char* string, uintsize length );
 
 bool			tikiStringViewIsEquals( TikiStringView lhs, TikiStringView rhs );
+bool			tikiStringViewIsEqualsStr( TikiStringView lhs, const char* rhs );
 
-#ifdef _DEBUG
+#ifdef TIKI_DEBUG
 #	define TIKI_ASSERT( exp ) assert( exp )
+#	define TIKI_VERIFY( exp ) assert( exp )
 #else
 #	define TIKI_ASSERT( exp )
+#	define TIKI_VERIFY( exp ) exp
 #endif
 
 #define TIKI_STATIC_MIN( a, b ) ((a) < (b) ? (a) : (b))

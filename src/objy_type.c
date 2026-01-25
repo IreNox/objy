@@ -1,5 +1,7 @@
 #include "objy_type.h"
 
+#include "tiki_debug.h"
+
 #include <string.h>
 
 static TikiHash		objyTypeHash( const void* entry );
@@ -12,7 +14,7 @@ bool objyTypeCollectionConstruct( ObjyTypeCollection* types, TikiAllocator* allo
 {
 	types->allocator	= allocator;
 	types->firstType	= NULL;
-	types->lastType	= NULL;
+	types->lastType		= NULL;
 
 	if( !tikiHashMapConstructSize( &types->nameMap, allocator, sizeof( ObjyType* ), objyTypeHash, objyTypeEquals, 64u ) ||
 		!tikiStringPoolConstruct( &types->stringPool, allocator ) )
@@ -40,7 +42,8 @@ void objyTypeCollectionDestruct( ObjyTypeCollection* types )
 const ObjyType* objyTypeCollectionFind( ObjyTypeCollection* types, const char* name )
 {
 	const TikiStringView nameString = { name, strlen( name ) };
-	const ObjyType** type = (const ObjyType**)tikiHashMapFind( &types->nameMap, &name );
+	const TikiStringView* mapSearchKey = &nameString;
+	const ObjyType** type = (const ObjyType**)tikiHashMapFind( &types->nameMap, &mapSearchKey );
 	if( !type )
 	{
 		return NULL;
@@ -66,10 +69,77 @@ const char* objyTypeKindGetString( ObjyTypeKind kind )
 	return "invalid";
 }
 
+const ObjyType* objyTypeFindPathType( const ObjyType* type, TikiStringView path )
+{
+	if( !type || !path.length )
+	{
+		return type;
+	}
+
+	if( path.data[ 0 ] == '[' )
+	{
+		if( type->kind != ObjyTypeKind_Array )
+		{
+			TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Expected 'Array' value but got '%s' value. Path: %.*s", objyTypeKindGetString( type->kind ), path.length, path.data );
+			return NULL;
+		}
+
+		const char* arrayClose = memchr( path.data, ']', path.length );
+		if( !arrayClose )
+		{
+			TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: No array close square brackets. Path: %.*s", path.length, path.data );
+			return NULL;
+		}
+
+		char* numberEnd = NULL;
+		const long arrayIndex = strtol( path.data + 1, &numberEnd, 10 );
+		if( numberEnd != arrayClose )
+		{
+			TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Invalid array index. Path: %.*s", path.length, path.data );
+			return NULL;
+		}
+
+		return objyTypeFindPathType( type->baseType, tikiStringViewCreateBeginEnd( arrayClose + 1, path.data + path.length ) );
+	}
+	else if( type->kind == ObjyTypeKind_Reference )
+	{
+		return objyTypeFindPathType( type->baseType, path );
+	}
+	else if( type->kind != ObjyTypeKind_Struct )
+	{
+		TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: Expected 'Struct' value but got '%s' value. Path: %.*s", objyTypeKindGetString( type->kind ), path.length, path.data );
+		return NULL;
+	}
+
+	uintsize endAdd = 1;
+	const char* fieldEnd = memchr( path.data, '.', path.length );
+	if( !fieldEnd )
+	{
+		endAdd = 0;
+		fieldEnd = path.data + path.length;
+	}
+
+	const TikiStringView fieldView = tikiStringViewCreateBeginEnd( path.data, fieldEnd );
+	for( size_t i = 0; i < type->globalFieldCount; ++i )
+	{
+		const ObjyTypeField* field = &type->globalFields[ i ];
+		if( !tikiStringViewIsEqualsStr( fieldView, field->name ) )
+		{
+			continue;
+		}
+
+		return objyTypeFindPathType( field->type, tikiStringViewCreateBeginEnd( fieldEnd + endAdd, path.data + path.length ) );
+	}
+
+	TIKI_DEBUG_ERROR( "Error: objyObjectFindValue: struct field '%.*s' not found. Path: %.*s", fieldView.length, fieldView.data, path.length, path.data );
+	return NULL;
+}
+
 static ObjyType* objyTypeCollectionCreateInternal( ObjyTypeCollection* types, const char* name, ObjyTypeKind kind, void* userData )
 {
 	const TikiStringView pooledName = tikiStringPoolAddPointer( &types->stringPool, name );
-	if( tikiHashMapFind( &types->nameMap, &pooledName ) )
+	const TikiStringView* mapSearchKey = &pooledName;
+	if( tikiHashMapFind( &types->nameMap, &mapSearchKey ) )
 	{
 		TIKI_DEBUG_ERROR( "Duplicate type name: %s", name );
 		return NULL;
@@ -98,12 +168,20 @@ static ObjyType* objyTypeCollectionCreateInternal( ObjyTypeCollection* types, co
 	type->prevType = types->lastType;
 	types->lastType = type;
 
-	tikiHashMapInsert( &types->nameMap, type );
+	tikiHashMapInsert( &types->nameMap, &type );
 	return type;
 }
 
 const ObjyType* objyTypeCreateValue( ObjySystem* system, const char* name, ObjyTypeKind kind, size_t bitCount, bool signedInt, void* userData )
 {
+	if( kind == ObjyTypeKind_Array ||
+		kind == ObjyTypeKind_Struct ||
+		kind == ObjyTypeKind_Reference )
+	{
+		TIKI_DEBUG_ERROR( "Value type can't be from kind Array, Struct or Reference." );
+		return NULL;
+	}
+
 	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, kind, userData );
 	if( !type )
 	{
@@ -294,8 +372,8 @@ static TikiHash objyTypeHash( const void* entry )
 
 static bool objyTypeEquals( const void* lhs, const void* rhs )
 {
-	const TikiStringView* lhsName = (const TikiStringView*)lhs;
-	const TikiStringView* rhsName = (const TikiStringView*)rhs;
+	const TikiStringView* lhsName = *(const TikiStringView**)lhs;
+	const TikiStringView* rhsName = *(const TikiStringView**)rhs;
 
 	if( lhsName->length != rhsName->length )
 	{

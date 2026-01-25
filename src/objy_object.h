@@ -64,8 +64,12 @@ void		objyObjectStorageDestroyObject( ObjyContext* context, ObjyObject* object )
 
 ObjyObject*	objyObjectStorageFind( ObjyObjectStorage* objects, ObjyId id );
 
-ObjyObject*	objyObjectAddToParent( ObjyObject* object, ObjyObject* parent );
-ObjyObject*	objyObjectRemoveFromParent( ObjyObject* object );
+void		objyObjectAddToParent( ObjyObject* object, ObjyObject* parent );
+void		objyObjectRemoveFromParent( ObjyObject* object );
 
-bool		objyObjectStateContextConstruct( ObjyObjectStateContext* state, ObjyContext* context, ObjyObjectStateContext* parentState );
-void		objyObjectStateContextDestruct( ObjyObjectStateContext* state );
+bool		objyObjectStateContextConstruct( ObjyObjectStateContext* stateContext, ObjyContext* context, ObjyObjectStateContext* parentState );
+void		objyObjectStateContextDestruct( ObjyObjectStateContext* stateContext );
+
+ObjyValue*	objyObjectStateContextFind( ObjyObjectStateContext* stateContext, ObjyId id );
+ObjyValue*	objyObjectStateContextFindOrCreate( ObjyObjectStateContext* stateContext, ObjyObject* object );
+bool		objyObjectStateContextSet( ObjyObjectStateContext* stateContext, ObjyObject* object, ObjyValue* value, bool isNewObject );

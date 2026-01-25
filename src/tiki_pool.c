@@ -58,7 +58,8 @@ uint64 tikiPoolAllocate( TikiPool* pool, void** element )
 	}
 
 	TikiPoolChunk* chunk;
-	if( pool->chunkCount == 0 && pool->chunks[ pool->chunkCount - 1 ]->allocatedCount == pool->chunkElementCount )
+	if( pool->chunkCount == 0 ||
+		pool->chunks[ pool->chunkCount - 1 ]->allocatedCount == pool->chunkElementCount )
 	{
 		const uintsize chunkSize = sizeof( *chunk ) + (pool->elementSize * pool->chunkElementCount);
 		chunk = tikiMemoryAlloc( pool->allocator, chunkSize );

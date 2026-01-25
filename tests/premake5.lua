@@ -1,4 +1,4 @@
--- samples
+-- tests
 
 local project = Project:new( ProjectTypes.ConsoleApplication )
 

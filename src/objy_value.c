@@ -2,6 +2,8 @@
 
 #include "tiki_types.h"
 
+void objyValueStorageFreeValueData( ObjyValueStorage* storage, ObjyValue* value );
+
 void objyValueStorageConstruct( ObjyValueStorage* storage, TikiAllocator* allocator )
 {
 	storage->allocator	= allocator;
@@ -38,36 +40,62 @@ void objyValueStorageFree( ObjyValueStorage* storage, ObjyValue* value )
 		return;
 	}
 
+	objyValueStorageFreeValueData( storage, value );
+	tikiPoolFree( &storage->pool, value->index );
+}
+
+void objyValueStorageFreeValueData( ObjyValueStorage* storage, ObjyValue* value )
+{
 	if( value->kind == ObjyTypeKind_Struct &&
 		value->data.struc.values )
 	{
-		for( uintsize i = 0; i < value->data.struc.valueCount; ++i )
+		ObjyValueStructData* structData = &value->data.struc;
+
+		for( uintsize i = 0; i < structData->valueCount; ++i )
 		{
-			objyValueStorageFree( storage, value->data.struc.values[ i ].value );
+			objyValueStorageFree( storage, structData->values[ i ].value );
 		}
 
-		tikiMemoryFree( storage->allocator, value->data.struc.values );
+		tikiMemoryFree( storage->allocator, structData->values );
+
+		structData->values			= NULL;
+		structData->valueCount		= 0;
+		structData->valueCapacity	= 0;
 	}
 	else if( value->kind == ObjyTypeKind_Array &&
 		value->data.arr.values )
 	{
-		for( uintsize i = 0; i < value->data.arr.valueCount; ++i )
+		ObjyValueArrayData* arrayData = &value->data.arr;
+
+		for( uintsize i = 0; i < arrayData->valueCount; ++i )
 		{
-			objyValueStorageFree( storage, value->data.arr.values[ i ] );
+			objyValueStorageFree( storage, arrayData->values[ i ] );
 		}
 
-		tikiMemoryFree( storage->allocator, value->data.arr.values );
+		tikiMemoryFree( storage->allocator, arrayData->values );
+
+		arrayData->values			= NULL;
+		arrayData->valueCount		= 0;
+		arrayData->valueCapacity	= 0;
 	}
 	else if( value->kind == ObjyTypeKind_String )
 	{
 		tikiMemoryFree( storage->allocator, value->data.str.data );
+
+		value->data.str.data	= NULL;
+		value->data.str.length	= 0;
 	}
 	else if( value->kind == ObjyTypeKind_Reference )
 	{
 		objyValueStorageFree( storage, value->data.ref );
-	}
 
-	tikiPoolFree( &storage->pool, value->index );
+		value->data.ref = NULL;
+	}
+}
+
+ObjyValue* objyValueCreate( ObjyContext* context, const ObjyType* type )
+{
+	return objyValueStorageAllocate( &context->values, type->kind );
 }
 
 ObjyValue* objyValueCreateId( ObjyContext* context, ObjyId newValue )
@@ -137,13 +165,18 @@ ObjyValue* objyValueCreateFloat( ObjyContext* context, double newValue )
 
 ObjyValue* objyValueCreateString( ObjyContext* context, const char* newValue )
 {
+	return objyValueCreateStringLength( context, newValue, strlen( newValue ) );
+}
+
+ObjyValue* objyValueCreateStringLength( ObjyContext* context, const char* newValue, size_t stringLength )
+{
 	ObjyValue* value = objyValueStorageAllocate( &context->values, ObjyTypeKind_String );
 	if( !value )
 	{
 		return NULL;
 	}
 
-	if( !objyValueWriteString( context, value, newValue ) )
+	if( !objyValueWriteStringLength( context, value, newValue, stringLength ) )
 	{
 		objyValueStorageFree( &context->values, value );
 		return NULL;
@@ -202,45 +235,58 @@ ObjyValue* objyValueCreateCopy( ObjyContext* context, const ObjyValue* valueToCo
 		return NULL;
 	}
 
+	if( !objyValueCopyData( context, value, valueToCopy ) )
+	{
+		objyValueStorageFree( &context->values, value );
+		return NULL;
+	}
+
+	return value;
+}
+
+bool objyValueCopyData( ObjyContext* context, ObjyValue* targetValue, const ObjyValue* sourceValue )
+{
+	objyValueStorageFreeValueData( &context->values, targetValue );
+
 	bool result = false;
-	switch( valueToCopy->kind )
+	switch( sourceValue->kind )
 	{
 	case ObjyTypeKind_Id:
-		result = objyValueWriteId( context, value, valueToCopy->data.id );
+		result = objyValueWriteId( context, targetValue, sourceValue->data.id );
 		break;
 
 	case ObjyTypeKind_Bool:
-		result = objyValueWriteBool( context, value, valueToCopy->data.b );
+		result = objyValueWriteBool( context, targetValue, sourceValue->data.b );
 		break;
 
 	case ObjyTypeKind_Integer:
-		result = objyValueWriteSInt( context, value, valueToCopy->data.sint );
+		result = objyValueWriteSInt( context, targetValue, sourceValue->data.sint );
 		break;
 
 	case ObjyTypeKind_Float:
-		result = objyValueWriteFloat( context, value, valueToCopy->data.fp );
+		result = objyValueWriteFloat( context, targetValue, sourceValue->data.fp );
 		break;
 
 	case ObjyTypeKind_String:
-		result = objyValueWriteStringLength( context, value, valueToCopy->data.str.data, valueToCopy->data.str.length );
+		result = objyValueWriteStringLength( context, targetValue, sourceValue->data.str.data, sourceValue->data.str.length );
 		break;
 
 	case ObjyTypeKind_Struct:
 		{
-			if( TIKI_MEMORY_ARRAY_CHECK_CAPACITY_ZERO( context->allocator, value->data.struc.values, value->data.struc.valueCapacity, valueToCopy->data.struc.valueCount ) )
+			if( TIKI_MEMORY_ARRAY_CHECK_CAPACITY_ZERO( context->allocator, targetValue->data.struc.values, targetValue->data.struc.valueCapacity, sourceValue->data.struc.valueCount ) )
 			{
 				return false;
 			}
 
-			value->data.struc.valueCount = valueToCopy->data.struc.valueCount;
+			targetValue->data.struc.valueCount = sourceValue->data.struc.valueCount;
 
-			for( size_t i = 0; i < valueToCopy->data.struc.valueCount; ++i )
+			for( size_t i = 0; i < sourceValue->data.struc.valueCount; ++i )
 			{
-				value->data.struc.values[ i ].name	= valueToCopy->data.struc.values[ i ].name;
-				value->data.struc.values[ i ].value	= objyValueCreateCopy( context, valueToCopy->data.struc.values[ i ].value );
+				targetValue->data.struc.values[ i ].name	= sourceValue->data.struc.values[ i ].name;
+				targetValue->data.struc.values[ i ].value	= objyValueCreateCopy( context, sourceValue->data.struc.values[ i ].value );
 
-				if( valueToCopy->data.struc.values[ i ].value &&
-					!value->data.struc.values[ i ].value )
+				if( sourceValue->data.struc.values[ i ].value &&
+					!targetValue->data.struc.values[ i ].value )
 				{
 					result = false;
 					break;
@@ -251,19 +297,19 @@ ObjyValue* objyValueCreateCopy( ObjyContext* context, const ObjyValue* valueToCo
 
 	case ObjyTypeKind_Array:
 		{
-			if( TIKI_MEMORY_ARRAY_CHECK_CAPACITY_ZERO( context->allocator, value->data.arr.values, value->data.arr.valueCapacity, valueToCopy->data.arr.valueCount ) )
+			if( TIKI_MEMORY_ARRAY_CHECK_CAPACITY_ZERO( context->allocator, targetValue->data.arr.values, targetValue->data.arr.valueCapacity, sourceValue->data.arr.valueCount ) )
 			{
 				return false;
 			}
 
-			value->data.arr.valueCount = valueToCopy->data.arr.valueCount;
+			targetValue->data.arr.valueCount = sourceValue->data.arr.valueCount;
 
-			for( size_t i = 0; i < valueToCopy->data.arr.valueCount; ++i )
+			for( size_t i = 0; i < sourceValue->data.arr.valueCount; ++i )
 			{
-				value->data.arr.values[ i ] = objyValueCreateCopy( context, valueToCopy->data.arr.values[ i ] );
+				targetValue->data.arr.values[ i ] = objyValueCreateCopy( context, sourceValue->data.arr.values[ i ] );
 
-				if( valueToCopy->data.arr.values[ i ] &&
-					!value->data.arr.values[ i ] )
+				if( sourceValue->data.arr.values[ i ] &&
+					!targetValue->data.arr.values[ i ] )
 				{
 					result = false;
 					break;
@@ -273,9 +319,9 @@ ObjyValue* objyValueCreateCopy( ObjyContext* context, const ObjyValue* valueToCo
 		break;
 
 	case ObjyTypeKind_Reference:
-		if( valueToCopy->data.ref )
+		if( sourceValue->data.ref )
 		{
-			result = objyValueWriteReference( context, value, objyValueCreateCopy( context, valueToCopy->data.ref ) );
+			result = objyValueWriteReference( context, targetValue, objyValueCreateCopy( context, sourceValue->data.ref ) );
 		}
 		break;
 
@@ -285,11 +331,10 @@ ObjyValue* objyValueCreateCopy( ObjyContext* context, const ObjyValue* valueToCo
 
 	if( !result )
 	{
-		objyValueStorageFree( &context->values, value );
-		return NULL;
+		return false;
 	}
 
-	return value;
+	return true;
 }
 
 void objyValueDestroy( ObjyContext* context, ObjyValue* value )
@@ -659,14 +704,14 @@ bool objyValueWriteStructFieldLength( ObjyContext* context, ObjyValue* value, co
 		typeField = &structType->globalFields[ i ];
 		if( typeField->type->kind != newValue->kind )
 		{
-			TIKI_DEBUG_WARNING( "Struct type mismatch. Field '%s' has type '%s' but try to set value of type '%s'.", fieldName, typeField->type->name.data, newValue->type->name.data );
+			TIKI_DEBUG_WARNING( "Struct type mismatch. Field '%.*s' has type '%s' but try to set value of type '%s'.", fieldNameLength, fieldName, objyTypeKindGetString( typeField->type->kind ), objyTypeKindGetString( newValue->kind ) );
 			return false;
 		}
 	}
 
 	if( !typeField )
 	{
-		TIKI_DEBUG_WARNING( "Struct field not found. Field '%s' doesn't exists in type '%s'.", fieldName, value->type->name.data );
+		TIKI_DEBUG_WARNING( "Struct field not found. Field '%.*s' doesn't exists in type '%.*s'.", fieldNameLength, fieldName, TIKI_STRING_VIEW_DATA( structType->name ) );
 		return false;
 	}
 
@@ -714,7 +759,7 @@ bool objyValueWriteArray( ObjyContext* context, ObjyValue* value, size_t index, 
 	const ObjyType* elementType = value->data.arr.elementType;
 	if( elementType->kind != newValue->kind )
 	{
-		TIKI_DEBUG_WARNING( "Array type mismatch. Element has type '%s' but array has of type '%s'.", newValue->type->name.data, value->type->baseType->name.data );
+		TIKI_DEBUG_WARNING( "Array type mismatch. Element has type '%s' but array has of type '%s'.", objyTypeKindGetString( newValue->kind ), objyTypeKindGetString( elementType->kind ) );
 		return false;
 	}
 

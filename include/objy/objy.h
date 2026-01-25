@@ -31,6 +31,8 @@ static const ObjyId ObjyIdInvalid = { 0, 0, 0, { 0, 0, 0, 0 } };
 #define OBJY_ID_FORMAT_DATA( var ) var.data1, var.data2, var.data3, var.data4[ 0 ], var.data4[ 1 ], var.data4[ 2 ], var.data4[ 3 ], var.data4[ 4 ], var.data4[ 5 ], var.data4[ 6 ], var.data4[ 7 ]
 
 bool objyIdIsValid( ObjyId id );
+bool objyIdIsEqual( ObjyId lhs, ObjyId rhs );
+void objyIdCreate( ObjyId* id );
 
 typedef struct ObjyBlob
 {
@@ -114,10 +116,10 @@ typedef enum ObjyTypeKind
 	ObjyTypeKind_Integer,
 	ObjyTypeKind_Float,
 	ObjyTypeKind_String,
+	ObjyTypeKind_Blob,
 	ObjyTypeKind_Struct,
 	ObjyTypeKind_Array,
-	ObjyTypeKind_Reference,
-	ObjyTypeKind_Blob
+	ObjyTypeKind_Reference
 } ObjyTypeKind;
 
 typedef struct ObjyTypeField
@@ -175,12 +177,14 @@ const ObjyValue*		objyObjectFindValueLength( const ObjyObject* object, const cha
 
 // Value
 
+ObjyValue*				objyValueCreate( ObjyContext* context, const ObjyType* type );
 ObjyValue*				objyValueCreateId( ObjyContext* context, ObjyId newValue );
 ObjyValue*				objyValueCreateBool( ObjyContext* context, bool newValue );
 ObjyValue*				objyValueCreateUInt( ObjyContext* context, uint64_t newValue );
 ObjyValue*				objyValueCreateSInt( ObjyContext* context, int64_t newValue );
 ObjyValue*				objyValueCreateFloat( ObjyContext* context, double newValue );
 ObjyValue*				objyValueCreateString( ObjyContext* context, const char* newValue );
+ObjyValue*				objyValueCreateStringLength( ObjyContext* context, const char* newValue, size_t stringLength );
 ObjyValue*				objyValueCreateStruct( ObjyContext* context, const ObjyType* structType );
 ObjyValue*				objyValueCreateArray( ObjyContext* context, const ObjyType* elementType );
 ObjyValue*				objyValueCreateReference( ObjyContext* context, const ObjyType* referenceType );
@@ -248,6 +252,7 @@ void					objyChangeSetWriteUInt( ObjyChangeSet* changeSet, ObjyObject* object, c
 void					objyChangeSetWriteSInt( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, int64_t value );
 void					objyChangeSetWriteFloat( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, double value );
 void					objyChangeSetWriteString( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, const char* value );
+void					objyChangeSetWriteStringLength( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, const char* value, size_t stringLength );
 void					objyChangeSetWriteArray( ObjyChangeSet* changeSet, ObjyObject* object, const char* path );
 void					objyChangeSetWriteReference( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, const ObjyValue* value, const ObjyType* type );
 void					objyChangeSetWriteBlob( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, const void* data, size_t dataSize );

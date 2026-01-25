@@ -39,17 +39,13 @@ struct ObjyContext
 
 	uint64					index;
 
+	ObjyObject*				rootObject;
+
 	ObjyObjectStorage		objects;
 	ObjyValueStorage		values;
 	ObjyChangeStorage		changes;
-
-	ObjyObject*				rootObject;
 
 	TikiPool				statePool;
 	ObjyObjectStateContext	baseState;
 	ObjyObjectStateContext*	currentState;
 };
-
-// TODO
-#define TIKI_DEBUG_WARNING( fmt, ... )
-#define TIKI_DEBUG_ERROR( fmt, ... )

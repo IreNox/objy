@@ -60,3 +60,5 @@ void		objyValueStorageDestruct( ObjyValueStorage* storage );
 
 ObjyValue*	objyValueStorageAllocate( ObjyValueStorage* storage, ObjyTypeKind typeKind );
 void		objyValueStorageFree( ObjyValueStorage* storage, ObjyValue* value );
+
+bool		objyValueCopyData( ObjyContext* context, ObjyValue* targetValue, const ObjyValue* sourceValue );
