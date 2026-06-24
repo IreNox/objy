@@ -30,6 +30,35 @@ struct ObjySystem
 
 	TikiPool				contextPool;
 	ObjyContext*			rootContext;
+
+	ObjyType*				typeFolder;
+	ObjyType*				typeKind;
+	ObjyType*				typeType;
+	ObjyType*				typeField;
+	ObjyType*				typeRef;
+
+	ObjyType*				typeBool;
+	ObjyType*				typeUInt8;
+	ObjyType*				typeUInt16;
+	ObjyType*				typeUInt32;
+	ObjyType*				typeUInt64;
+	ObjyType*				typeSInt8;
+	ObjyType*				typeSInt16;
+	ObjyType*				typeSInt32;
+	ObjyType*				typeSInt64;
+	ObjyType*				typeFloat;
+	ObjyType*				typeDouble;
+
+	ObjyObject*				typesFolderObject;
+
+	ObjyObject*				typeKindObjects[ TIKI_ARRAY_COUNT( ObjyIdObjyTypeKindValues ) ];
+
+	ObjyObject*				typeTypeKindObject;
+	ObjyObject*				typeTypeBaseTypeObject;
+	ObjyObject*				typeTypeValueBitCountObject;
+	ObjyObject*				typeTypeSignedIntegerObject;
+
+	ObjyObject*				typeFieldTypebject;
 };
 
 struct ObjyContext

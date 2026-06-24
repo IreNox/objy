@@ -472,7 +472,7 @@ static bool objyChangeApplyCreate( ObjyChangeSet* changeSet, ObjyChange* change 
 		return false;
 	}
 
-	ObjyObject* object = objyObjectStorageCreateObject( changeSet->context, createData->id, createData->name, type, createData->parentId );
+	ObjyObject* object = objyObjectStorageCreateObject( changeSet->context, createData->id, createData->name, type, createData->parentId, NULL );
 	if( !object )
 	{
 		changeSet->hasError = true;
@@ -588,7 +588,7 @@ static bool objyChangeApplyModify( ObjyChangeSet* changeSet, ObjyChange* change,
 		else if( value->kind == ObjyTypeKind_Reference )
 		{
 			type = type->baseType;
-			value = value->data.ref;
+			value = value->data.ref.value;
 		}
 		else if( value->kind == ObjyTypeKind_Struct )
 		{

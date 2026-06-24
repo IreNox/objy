@@ -87,9 +87,10 @@ void objyValueStorageFreeValueData( ObjyValueStorage* storage, ObjyValue* value 
 	}
 	else if( value->kind == ObjyTypeKind_Reference )
 	{
-		objyValueStorageFree( storage, value->data.ref );
+		objyValueStorageFree( storage, value->data.ref.value );
 
-		value->data.ref = NULL;
+		value->data.ref.typeId	= ObjyIdInvalid;
+		value->data.ref.value	= NULL;
 	}
 }
 
@@ -185,39 +186,31 @@ ObjyValue* objyValueCreateStringLength( ObjyContext* context, const char* newVal
 	return value;
 }
 
-ObjyValue* objyValueCreateStruct( ObjyContext* context, const ObjyType* structType )
+ObjyValue* objyValueCreateStruct( ObjyContext* context )
 {
-	ObjyValue* value = objyValueStorageAllocate( &context->values, ObjyTypeKind_Struct );
-	if( !value )
+	return objyValueStorageAllocate( &context->values, ObjyTypeKind_Struct );
+}
+
+ObjyValue* objyValueCreateArray( ObjyContext* context )
+{
+	return objyValueStorageAllocate( &context->values, ObjyTypeKind_Array );
+}
+
+ObjyValue* objyValueCreateReference( ObjyContext* context, const ObjyType* refType, ObjyValue* refValue )
+{
+	if( !refType || !refValue )
 	{
 		return NULL;
 	}
 
-	value->data.struc.structType = structType;
-
-	return value;
-}
-
-ObjyValue* objyValueCreateArray( ObjyContext* context, const ObjyType* elementType )
-{
-	ObjyValue* value = objyValueStorageAllocate( &context->values, ObjyTypeKind_Array );
-	if( !value )
-	{
-		return NULL;
-	}
-
-	value->data.arr.elementType = elementType;
-
-	return value;
-}
-
-ObjyValue* objyValueCreateReference( ObjyContext* context, const ObjyType* referenceType )
-{
 	ObjyValue* value = objyValueStorageAllocate( &context->values, ObjyTypeKind_Reference );
 	if( !value )
 	{
 		return NULL;
 	}
+
+	value->data.ref.typeId	= refType->object->id;
+	value->data.ref.value	= value;
 
 	return value;
 }
@@ -319,9 +312,9 @@ bool objyValueCopyData( ObjyContext* context, ObjyValue* targetValue, const Objy
 		break;
 
 	case ObjyTypeKind_Reference:
-		if( sourceValue->data.ref )
+		if( sourceValue->data.ref.value )
 		{
-			result = objyValueWriteReference( context, targetValue, objyValueCreateCopy( context, sourceValue->data.ref ) );
+			result = objyValueWriteReference( context, targetValue, sourceValue->data.ref.typeId, objyValueCreateCopy( context, sourceValue->data.ref.value ) );
 		}
 		break;
 
@@ -575,7 +568,7 @@ const ObjyValue* objyValueReadReference( const ObjyValue* value )
 		return NULL;
 	}
 
-	return value->data.ref;
+	return value->data.ref.value;
 }
 
 const ObjyType* objyValueReadReferenceType( const ObjyValue* value )
@@ -590,12 +583,7 @@ const ObjyType* objyValueReadReferenceType( const ObjyValue* value )
 		return NULL;
 	}
 
-	if( !value->data.ref )
-	{
-		return NULL;
-	}
-
-	return value->data.ref->data.struc.structType;
+	return NULL; // value->data.ref.typeId;
 }
 
 bool objyValueWriteId( ObjyContext* context, ObjyValue* value, ObjyId newValue )
@@ -690,30 +678,31 @@ bool objyValueWriteStructFieldLength( ObjyContext* context, ObjyValue* value, co
 		return false;
 	}
 
-	const ObjyType* structType = value->data.struc.structType;
-	const TikiStringView fieldNameView = tikiStringViewCreate( fieldName, fieldNameLength );
+	//const ObjyType* structType = value->data.struc.structType;
+	//const TikiStringView fieldNameView = tikiStringViewCreate( fieldName, fieldNameLength );
+	const TikiStringView fieldNameView = tikiStringPoolAddPointer( &context->system->types.stringPool, fieldName );
 
-	ObjyTypeField* typeField = NULL;
-	for( uintsize i = 0; i < structType->globalFieldCount; ++i )
-	{
-		if( tikiStringViewIsEquals( tikiStringViewCreateFromPointer( structType->globalFields[ i ].name ), fieldNameView ) != 0 )
-		{
-			continue;
-		}
+	//ObjyTypeField* typeField = NULL;
+	//for( uintsize i = 0; i < structType->globalFieldCount; ++i )
+	//{
+	//	if( tikiStringViewIsEquals( tikiStringViewCreateFromPointer( structType->globalFields[ i ].name ), fieldNameView ) != 0 )
+	//	{
+	//		continue;
+	//	}
 
-		typeField = &structType->globalFields[ i ];
-		if( typeField->type->kind != newValue->kind )
-		{
-			TIKI_DEBUG_WARNING( "Struct type mismatch. Field '%.*s' has type '%s' but try to set value of type '%s'.", fieldNameLength, fieldName, objyTypeKindGetString( typeField->type->kind ), objyTypeKindGetString( newValue->kind ) );
-			return false;
-		}
-	}
+	//	typeField = &structType->globalFields[ i ];
+	//	if( typeField->type->kind != newValue->kind )
+	//	{
+	//		TIKI_DEBUG_WARNING( "Struct type mismatch. Field '%.*s' has type '%s' but try to set value of type '%s'.", fieldNameLength, fieldName, objyTypeKindGetString( typeField->type->kind ), objyTypeKindGetString( newValue->kind ) );
+	//		return false;
+	//	}
+	//}
 
-	if( !typeField )
-	{
-		TIKI_DEBUG_WARNING( "Struct field not found. Field '%.*s' doesn't exists in type '%.*s'.", fieldNameLength, fieldName, TIKI_STRING_VIEW_DATA( structType->name ) );
-		return false;
-	}
+	//if( !typeField )
+	//{
+	//	TIKI_DEBUG_WARNING( "Struct field not found. Field '%.*s' doesn't exists in type '%.*s'.", fieldNameLength, fieldName, TIKI_STRING_VIEW_DATA( structType->name ) );
+	//	return false;
+	//}
 
 	ObjyValueField* valueField = NULL;
 	ObjyValueStructData* structData = &value->data.struc;
@@ -738,7 +727,7 @@ bool objyValueWriteStructFieldLength( ObjyContext* context, ObjyValue* value, co
 		valueField = &value->data.struc.values[ value->data.struc.valueCount ];
 		value->data.struc.valueCount++;
 
-		valueField->name = tikiStringViewCreateFromPointer( typeField->name );
+		valueField->name = fieldNameView; // tikiStringViewCreateFromPointer( typeField->name );
 	}
 	else
 	{
@@ -756,12 +745,12 @@ bool objyValueWriteArray( ObjyContext* context, ObjyValue* value, size_t index, 
 		return false;
 	}
 
-	const ObjyType* elementType = value->data.arr.elementType;
-	if( elementType->kind != newValue->kind )
-	{
-		TIKI_DEBUG_WARNING( "Array type mismatch. Element has type '%s' but array has of type '%s'.", objyTypeKindGetString( newValue->kind ), objyTypeKindGetString( elementType->kind ) );
-		return false;
-	}
+	//const ObjyType* elementType = value->data.arr.elementType;
+	//if( elementType->kind != newValue->kind )
+	//{
+	//	TIKI_DEBUG_WARNING( "Array type mismatch. Element has type '%s' but array has of type '%s'.", objyTypeKindGetString( newValue->kind ), objyTypeKindGetString( elementType->kind ) );
+	//	return false;
+	//}
 
 	ObjyValueArrayData* arrayData = &value->data.arr;
 	if( !TIKI_MEMORY_ARRAY_CHECK_CAPACITY_ZERO( context->allocator, arrayData->values, arrayData->valueCapacity, index + 1 ) )
@@ -778,13 +767,13 @@ bool objyValueWriteArray( ObjyContext* context, ObjyValue* value, size_t index, 
 	return true;
 }
 
-bool objyValueWriteReference( ObjyContext* context, ObjyValue* value, ObjyValue* newValue )
+bool objyValueWriteReference( ObjyContext* context, ObjyValue* value, ObjyId typeId, ObjyValue* newValue )
 {
 	if( !value || value->kind != ObjyTypeKind_Reference )
 	{
 		return false;
 	}
-	else if( newValue->kind != ObjyTypeKind_Struct )
+	else if( newValue && newValue->kind != ObjyTypeKind_Struct )
 	{
 		return false;
 	}
@@ -809,11 +798,13 @@ bool objyValueWriteReference( ObjyContext* context, ObjyValue* value, ObjyValue*
 	//	return false;
 	//}
 
-	if( value->data.ref )
+	if( value->data.ref.value )
 	{
-		objyValueStorageFree( &context->values, value->data.ref );
+		objyValueStorageFree( &context->values, value->data.ref.value );
 	}
 
-	value->data.ref = newValue;
+	value->data.ref.typeId	= typeId;
+	value->data.ref.value	= newValue;
+
 	return true;
 }

@@ -7,7 +7,6 @@
 static TikiHash		objyTypeHash( const void* entry );
 static bool			objyTypeEquals( const void* lhs, const void* rhs );
 
-static ObjyType*	objyTypeCollectionCreateInternal( ObjyTypeCollection* types, const char* name, ObjyTypeKind kind, void* userData );
 static void			objyTypeDestroyInternal( ObjyTypeCollection* types, ObjyType* type );
 
 bool objyTypeCollectionConstruct( ObjyTypeCollection* types, TikiAllocator* allocator )
@@ -39,11 +38,11 @@ void objyTypeCollectionDestruct( ObjyTypeCollection* types )
 	tikiPoolDestruct( &types->pool );
 }
 
-const ObjyType* objyTypeCollectionFind( ObjyTypeCollection* types, const char* name )
+ObjyType* objyTypeCollectionFind( ObjyTypeCollection* types, const char* name )
 {
 	const TikiStringView nameString = { name, strlen( name ) };
 	const TikiStringView* mapSearchKey = &nameString;
-	const ObjyType** type = (const ObjyType**)tikiHashMapFind( &types->nameMap, &mapSearchKey );
+	ObjyType** type = (ObjyType**)tikiHashMapFind( &types->nameMap, &mapSearchKey );
 	if( !type )
 	{
 		return NULL;
@@ -135,7 +134,7 @@ const ObjyType* objyTypeFindPathType( const ObjyType* type, TikiStringView path 
 	return NULL;
 }
 
-static ObjyType* objyTypeCollectionCreateInternal( ObjyTypeCollection* types, const char* name, ObjyTypeKind kind, void* userData )
+static ObjyType* objyTypeCollectionCreate( ObjyTypeCollection* types, const char* name, ObjyTypeKind kind, void* userData )
 {
 	const TikiStringView pooledName = tikiStringPoolAddPointer( &types->stringPool, name );
 	const TikiStringView* mapSearchKey = &pooledName;
@@ -172,116 +171,129 @@ static ObjyType* objyTypeCollectionCreateInternal( ObjyTypeCollection* types, co
 	return type;
 }
 
-const ObjyType* objyTypeCreateValue( ObjySystem* system, const char* name, ObjyTypeKind kind, size_t bitCount, bool signedInt, void* userData )
+//const ObjyType* objyTypeCreateValue( ObjySystem* system, const char* name, ObjyTypeKind kind, size_t bitCount, bool signedInt, void* userData )
+//{
+//	if( kind == ObjyTypeKind_Array ||
+//		kind == ObjyTypeKind_Struct ||
+//		kind == ObjyTypeKind_Reference )
+//	{
+//		TIKI_DEBUG_ERROR( "Value type can't be from kind Array, Struct or Reference." );
+//		return NULL;
+//	}
+//
+//	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, kind, userData );
+//	if( !type )
+//	{
+//		return NULL;
+//	}
+//
+//	type->bitCount	= (uint8)bitCount;
+//	type->signedInt	= signedInt;
+//
+//	return type;
+//}
+//
+//const ObjyType* objyTypeCreateStruct( ObjySystem* system, const char* name, const ObjyTypeField* fields, size_t fieldCount, void* userData )
+//{
+//	return objyTypeCreateStructInherited( system, name, NULL, fields, fieldCount, userData );
+//}
+//
+//const ObjyType* objyTypeCreateStructInherited( ObjySystem* system, const char* name, const ObjyType* baseType, const ObjyTypeField* fields, size_t fieldCount, void* userData )
+//{
+//	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, ObjyTypeKind_Struct, userData );
+//	if( !type )
+//	{
+//		return NULL;
+//	}
+//
+//	type->baseType = baseType;
+//
+//	const uintsize totalFieldCount = fieldCount + (baseType ? baseType->globalFieldCount : 0);
+//	ObjyTypeField* newFields = TIKI_MEMORY_ARRAY_NEW( &system->allocator, ObjyTypeField, totalFieldCount );
+//
+//	if( baseType )
+//	{
+//		memcpy( newFields, baseType->globalFields, sizeof( *fields ) * baseType->globalFieldCount );
+//		memcpy( newFields + baseType->globalFieldCount, fields, sizeof( *fields ) * fieldCount );
+//
+//		type->localFields		= newFields + baseType->globalFieldCount;
+//		type->localFieldCount	= fieldCount;
+//		type->globalFields		= newFields;
+//		type->globalFieldCount	= baseType->globalFieldCount + fieldCount;
+//	}
+//	else
+//	{
+//		memcpy( newFields, fields, sizeof( *fields ) * fieldCount );
+//
+//		type->localFields		= newFields;
+//		type->localFieldCount	= fieldCount;
+//		type->globalFields		= newFields;
+//		type->globalFieldCount	= fieldCount;
+//	}
+//
+//	for( uintsize i = 0; i < type->localFieldCount; ++i )
+//	{
+//		ObjyTypeField* field = &type->localFields[ i ];
+//
+//		const TikiStringView fieldNameString = tikiStringPoolAddPointer( &system->types.stringPool, field->name );
+//		field->name = fieldNameString.data;
+//	}
+//
+//	return type;
+//}
+//
+//const ObjyType* objyTypeCreateArray( ObjySystem* system, const ObjyType* baseType, void* userData )
+//{
+//	const uintsize nameLength = baseType->name.length + 3u;
+//	char* name = alloca( nameLength );
+//	memcpy( name, baseType->name.data, baseType->name.length );
+//	strcpy( name + baseType->name.length, "[]" );
+//
+//	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, ObjyTypeKind_Array, userData );
+//	if( !type )
+//	{
+//		return NULL;
+//	}
+//
+//	type->baseType = baseType;
+//
+//	return type;
+//}
+//
+//const ObjyType* objyTypeCreateReference( ObjySystem* system, const ObjyType* baseType, void* userData )
+//{
+//	const uintsize nameLength = baseType->name.length + 2u;
+//	char* name = alloca( nameLength );
+//	memcpy( name, baseType->name.data, baseType->name.length );
+//	strcpy( name + baseType->name.length, "*" );
+//
+//	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, ObjyTypeKind_Reference, userData );
+//	if( !type )
+//	{
+//		return NULL;
+//	}
+//
+//	type->baseType = baseType;
+//
+//	return type;
+//}
+//
+//void objyTypeDestroy( ObjySystem* system, const ObjyType* type )
+//{
+//	objyTypeDestroyInternal( &system->types, (ObjyType*)type );
+//}
+
+void objyTypeSetCallbacks( ObjySystem* system, ObjyType* type, ObjyTypeNewObjectFunc* newObjectCallback, ObjyTypeObjectDeleteFunc* objectDeleteCallback, ObjyTypeObjectModifyFunc* objectModifyCallback, void* userData )
 {
-	if( kind == ObjyTypeKind_Array ||
-		kind == ObjyTypeKind_Struct ||
-		kind == ObjyTypeKind_Reference )
-	{
-		TIKI_DEBUG_ERROR( "Value type can't be from kind Array, Struct or Reference." );
-		return NULL;
-	}
-
-	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, kind, userData );
-	if( !type )
-	{
-		return NULL;
-	}
-
-	type->bitCount	= (uint8)bitCount;
-	type->signedInt	= signedInt;
-
-	return type;
+	type->newObjectCallback		= newObjectCallback;
+	type->objectDeleteCallback	= objectDeleteCallback;
+	type->objectModifyCallback	= objectModifyCallback;
+	type->userData				= userData;
 }
 
-const ObjyType* objyTypeCreateStruct( ObjySystem* system, const char* name, const ObjyTypeField* fields, size_t fieldCount, void* userData )
+void objyTypeSetUserData( ObjySystem* system, ObjyType* type, void* userData )
 {
-	return objyTypeCreateStructInherited( system, name, NULL, fields, fieldCount, userData );
-}
-
-const ObjyType* objyTypeCreateStructInherited( ObjySystem* system, const char* name, const ObjyType* baseType, const ObjyTypeField* fields, size_t fieldCount, void* userData )
-{
-	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, ObjyTypeKind_Struct, userData );
-	if( !type )
-	{
-		return NULL;
-	}
-
-	type->baseType = baseType;
-
-	const uintsize totalFieldCount = fieldCount + (baseType ? baseType->globalFieldCount : 0);
-	ObjyTypeField* newFields = TIKI_MEMORY_ARRAY_NEW( &system->allocator, ObjyTypeField, totalFieldCount );
-
-	if( baseType )
-	{
-		memcpy( newFields, baseType->globalFields, sizeof( *fields ) * baseType->globalFieldCount );
-		memcpy( newFields + baseType->globalFieldCount, fields, sizeof( *fields ) * fieldCount );
-
-		type->localFields		= newFields + baseType->globalFieldCount;
-		type->localFieldCount	= fieldCount;
-		type->globalFields		= newFields;
-		type->globalFieldCount	= baseType->globalFieldCount + fieldCount;
-	}
-	else
-	{
-		memcpy( newFields, fields, sizeof( *fields ) * fieldCount );
-
-		type->localFields		= newFields;
-		type->localFieldCount	= fieldCount;
-		type->globalFields		= newFields;
-		type->globalFieldCount	= fieldCount;
-	}
-
-	for( uintsize i = 0; i < type->localFieldCount; ++i )
-	{
-		ObjyTypeField* field = &type->localFields[ i ];
-
-		const TikiStringView fieldNameString = tikiStringPoolAddPointer( &system->types.stringPool, field->name );
-		field->name = fieldNameString.data;
-	}
-
-	return type;
-}
-
-const ObjyType* objyTypeCreateArray( ObjySystem* system, const ObjyType* baseType, void* userData )
-{
-	const uintsize nameLength = baseType->name.length + 3u;
-	char* name = alloca( nameLength );
-	memcpy( name, baseType->name.data, baseType->name.length );
-	strcpy( name + baseType->name.length, "[]" );
-
-	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, ObjyTypeKind_Array, userData );
-	if( !type )
-	{
-		return NULL;
-	}
-
-	type->baseType = baseType;
-
-	return type;
-}
-
-const ObjyType* objyTypeCreateReference( ObjySystem* system, const ObjyType* baseType, void* userData )
-{
-	const uintsize nameLength = baseType->name.length + 2u;
-	char* name = alloca( nameLength );
-	memcpy( name, baseType->name.data, baseType->name.length );
-	strcpy( name + baseType->name.length, "*" );
-
-	ObjyType* type = objyTypeCollectionCreateInternal( &system->types, name, ObjyTypeKind_Reference, userData );
-	if( !type )
-	{
-		return NULL;
-	}
-
-	type->baseType = baseType;
-
-	return type;
-}
-
-void objyTypeDestroy( ObjySystem* system, const ObjyType* type )
-{
-	objyTypeDestroyInternal( &system->types, (ObjyType*)type );
+	type->userData = userData;
 }
 
 static void objyTypeDestroyInternal( ObjyTypeCollection* types, ObjyType* type )
@@ -314,9 +326,14 @@ static void objyTypeDestroyInternal( ObjyTypeCollection* types, ObjyType* type )
 	tikiPoolFree( &types->pool, type->index );
 }
 
-const ObjyType* objyTypeFind( ObjySystem* system, const char* name )
+ObjyType* objyTypeFind( ObjySystem* system, const char* name )
 {
 	return objyTypeCollectionFind( &system->types, name );
+}
+
+ObjyId objyTypeGetId( const ObjyType* type )
+{
+	return type->object->id;
 }
 
 const char* objyTypeGetName( const ObjyType* type )
@@ -332,6 +349,16 @@ ObjyTypeKind objyTypeGetKind( const ObjyType* type )
 const ObjyType* objyTypeGetBaseType( const ObjyType* type )
 {
 	return type->baseType;
+}
+
+size_t objyTypeGetValueBitCount( const ObjyType* type )
+{
+	return type->bitCount;
+}
+
+bool objyTypeGetSignedInt( const ObjyType* type )
+{
+	return type->signedInt;
 }
 
 void* objyTypeGetUserData( const ObjyType* type )
@@ -357,11 +384,6 @@ const ObjyTypeField* objyTypeGetStructGlobalFields( const ObjyType* type )
 size_t objyTypeGetStructGlobalFieldCount( const ObjyType* type )
 {
 	return type->globalFieldCount;
-}
-
-size_t objyTypeGetValueBitCount( const ObjyType* type )
-{
-	return type->bitCount;
 }
 
 static TikiHash objyTypeHash( const void* entry )

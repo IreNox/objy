@@ -10,44 +10,85 @@
 #	define OBJY_TYPE_CHUNK_SIZE 256
 #endif
 
+static const ObjyId ObjyIdTypeRef				= { 0x7ca7f88d, 0xf013, 0x3ad5, { 0xb9, 0xab, 0x48, 0xf1, 0x56, 0xce, 0x0a, 0x48 } }; // UUID v3: ObjyIdTypesFolder/ObjyTypeRef
+static const ObjyId ObjyIdObjyTypeKind			= { 0x85856c0a, 0xedc5, 0x35e0, { 0xa7, 0x81, 0x78, 0x66, 0x01, 0x9d, 0xe0, 0x63 } }; // UUID v3: ObjyIdTypesFolder/ObjyType.Kind
+static const ObjyId ObjyIdObjyTypeBaseType		= { 0x3b0d303e, 0xeb3e, 0x343f, { 0xb4, 0xd0, 0x33, 0x43, 0xd3, 0xa8, 0xcc, 0xde } }; // UUID v3: ObjyIdTypesFolder/ObjyType.BaseType
+static const ObjyId ObjyIdObjyTypeValueBitCount	= { 0x5153b0de, 0x4123, 0x3860, { 0xb6, 0xfe, 0xe3, 0x49, 0xbf, 0xe2, 0xbe, 0xff } }; // UUID v3: ObjyIdTypesFolder/ObjyType.ValueBitCount
+static const ObjyId ObjyIdObjyTypeSignedInteger	= { 0x042af088, 0x95d9, 0x38b4, { 0xb2, 0xe7, 0x83, 0x38, 0x79, 0x41, 0xa8, 0x90 } }; // UUID v3: ObjyIdTypesFolder/ObjyType.SignedInteger
+static const ObjyId ObjyIdObjyTypeFieldType		= { 0x671e3efc, 0x7137, 0x32fb, { 0xb1, 0xd5, 0x66, 0xe2, 0x4b, 0xfb, 0x87, 0x33 } }; // UUID v3: ObjyIdTypesFolder/ObjyTypeField.Type
+
+static const ObjyId ObjyIdTypeBool				= { 0x98cd74b6, 0x70a3, 0x36aa, { 0xa2, 0x67, 0x71, 0x55, 0xc8, 0x42, 0xcb, 0xf9 } }; // UUID v3: ObjyIdTypesFolder/Bool
+static const ObjyId ObjyIdTypeUInt8				= { 0xf52b4cb5, 0x61b4, 0x3631, { 0x98, 0xce, 0x72, 0x30, 0xc0, 0x40, 0xa6, 0x0b } }; // UUID v3: ObjyIdTypesFolder/UInt8
+static const ObjyId ObjyIdTypeUInt16			= { 0x39d7f2f4, 0x8da7, 0x3177, { 0x82, 0x2b, 0x30, 0x74, 0x6a, 0x48, 0xda, 0x6c } }; // UUID v3: ObjyIdTypesFolder/UInt16
+static const ObjyId ObjyIdTypeUInt32			= { 0x90c236e9, 0x5070, 0x3ecd, { 0x80, 0x97, 0xb1, 0x2d, 0xf6, 0x8a, 0x2b, 0x79 } }; // UUID v3: ObjyIdTypesFolder/UInt32
+static const ObjyId ObjyIdTypeUInt64			= { 0x91b42ad0, 0x088c, 0x32ca, { 0xbd, 0xa4, 0x32, 0x08, 0xcf, 0xa1, 0x4d, 0x29 } }; // UUID v3: ObjyIdTypesFolder/UInt64
+static const ObjyId ObjyIdTypeSInt8				= { 0x8af59a77, 0xf5bc, 0x3ed0, { 0x83, 0x27, 0x8b, 0xa8, 0x4e, 0x73, 0x0a, 0x3d } }; // UUID v3: ObjyIdTypesFolder/SInt8
+static const ObjyId ObjyIdTypeSInt16			= { 0x03f2688a, 0x0440, 0x3863, { 0xb3, 0xf7, 0xe5, 0x0f, 0x1f, 0x81, 0xd1, 0x98 } }; // UUID v3: ObjyIdTypesFolder/SInt16
+static const ObjyId ObjyIdTypeSInt32			= { 0x8b418269, 0xf925, 0x3ff8, { 0xb5, 0x83, 0x2c, 0x65, 0xae, 0xad, 0x1b, 0x4b } }; // UUID v3: ObjyIdTypesFolder/SInt32
+static const ObjyId ObjyIdTypeSInt64			= { 0x6eb5f604, 0x413e, 0x3df4, { 0x8e, 0xbf, 0x4f, 0x17, 0x71, 0xa6, 0xfb, 0xeb } }; // UUID v3: ObjyIdTypesFolder/SInt64
+static const ObjyId ObjyIdTypeFloat				= { 0x967b244b, 0xe24c, 0x35c8, { 0xa9, 0x79, 0x07, 0x07, 0xc8, 0x51, 0xf9, 0x6a } }; // UUID v3: ObjyIdTypesFolder/Float
+static const ObjyId ObjyIdTypeDouble			= { 0xcf4f84a6, 0xb449, 0x3b09, { 0xb1, 0x77, 0xab, 0x83, 0x80, 0x62, 0x35, 0x5d } }; // UUID v3: ObjyIdTypesFolder/Double
+static const ObjyId ObjyIdTypeString			= { 0xf41dc26f, 0x1e12, 0x3bca, { 0xa5, 0xff, 0xb3, 0x05, 0x0e, 0x46, 0xfc, 0x4e } }; // UUID v3: ObjyIdTypesFolder/String
+
+static const ObjyId ObjyIdObjyTypeKindValues[] = {
+	{ 0x4be667a0, 0xab42, 0x3b84, { 0x93, 0x30, 0xcc, 0xc1, 0xf0, 0x23, 0xdf, 0x4a } }, // UUID v3: ObjyIdTypesFolder/ObjyTypeKind.Id
+	{ 0x4b381238, 0xbdfa, 0x3728, { 0x90, 0x84, 0x0c, 0xce, 0x29, 0xcd, 0xab, 0x67 } }, // UUID v3: ObjyIdTypesFolder/ObjyTypeKind.Bool
+	{ 0x8599e033, 0x6d7b, 0x3189, { 0xbf, 0xb7, 0x6a, 0xc3, 0x72, 0xce, 0xde, 0x97 } }, // UUID v3: ObjyIdTypesFolder/ObjyTypeKind.Integer
+	{ 0x300f8028, 0xf2e3, 0x3ff8, { 0xb9, 0x04, 0x63, 0xa5, 0x9c, 0x16, 0x2d, 0xab } }, // UUID v3: ObjyIdTypesFolder/ObjyTypeKind.Float
+	{ 0xc178b794, 0xb464, 0x393c, { 0xb2, 0xc5, 0xac, 0x29, 0x0a, 0xac, 0x20, 0x04 } }, // UUID v3: ObjyIdTypesFolder/ObjyTypeKind.Enum
+	{ 0xb38d12ff, 0xc4c9, 0x3e18, { 0xba, 0x89, 0x3b, 0xf6, 0xa7, 0x77, 0x0c, 0x7f } }, // UUID v3: ObjyIdTypesFolder/ObjyTypeKind.String
+	{ 0xbdf35077, 0xf2b4, 0x335d, { 0xb0, 0x06, 0xc4, 0xf2, 0xc4, 0x99, 0xe4, 0x12 } }, // UUID v3: ObjyIdTypesFolder/ObjyTypeKind.Blob
+	{ 0x17e88d44, 0x00a0, 0x3724, { 0x8e, 0x35, 0x72, 0x2e, 0x03, 0xa1, 0xa8, 0xe6 } }, // UUID v3: ObjyIdTypesFolder/ObjyTypeKind.Struct
+	{ 0x4db69d3a, 0xc717, 0x3dd1, { 0x8b, 0xaa, 0x28, 0xe7, 0xd3, 0xd8, 0xc3, 0xf8 } }, // UUID v3: ObjyIdTypesFolder/ObjyTypeKind.Array
+	{ 0x52aaf30e, 0x4f83, 0x3643, { 0xa0, 0x71, 0x06, 0x92, 0xf3, 0x77, 0x4c, 0x34 } }, // UUID v3: ObjyIdTypesFolder/ObjyTypeKind.Reference
+	{ 0x4ce4b4ec, 0xd37d, 0x3ad8, { 0xa8, 0xf6, 0x01, 0x46, 0xdd, 0xae, 0x8a, 0x95 } }  // UUID v3: ObjyIdTypesFolder/ObjyTypeKind.DateTime
+};
+
 typedef struct ObjyType ObjyType;
 
 typedef struct ObjyTypeCollection
 {
-	TikiAllocator*	allocator;
+	TikiAllocator*				allocator;
 
-	ObjyType*		firstType;
-	ObjyType*		lastType;
+	ObjyType*					firstType;
+	ObjyType*					lastType;
 
-	TikiPool		pool;
-	TikiHashMap		nameMap;
-	TikiStringPool	stringPool;
+	TikiPool					pool;
+	TikiHashMap					nameMap;
+	TikiStringPool				stringPool;
 } ObjyTypeCollection;
 
 struct ObjyType
 {
-	TikiStringView	name;
-	uint64			index;
-	ObjyTypeKind	kind;
-	const ObjyType*	baseType;
-	uint8			bitCount;
-	bool			signedInt;
-	void*			userData;
+	TikiStringView				name;
+	uint64						index;
+	ObjyTypeKind				kind;
+	const ObjyType*				baseType;
+	uint8						bitCount;
+	bool						signedInt;
+	ObjyTypeNewObjectFunc*		newObjectCallback;
+	ObjyTypeObjectDeleteFunc*	objectDeleteCallback;
+	ObjyTypeObjectModifyFunc*	objectModifyCallback;
+	void*						userData;
 
-	ObjyType*		prevType;
-	ObjyType*		nextType;
+	ObjyObject*					object;
 
-	ObjyTypeField*	localFields;
-	uintsize		localFieldCount;
-	ObjyTypeField*	globalFields;
-	uintsize		globalFieldCount;
+	ObjyType*					prevType;
+	ObjyType*					nextType;
+
+	ObjyTypeField*				localFields;
+	uintsize					localFieldCount;
+	ObjyTypeField*				globalFields;
+	uintsize					globalFieldCount;
 };
 
-bool				objyTypeCollectionConstruct( ObjyTypeCollection* types, TikiAllocator* allocator );
-void				objyTypeCollectionDestruct( ObjyTypeCollection* types );
+bool						objyTypeCollectionConstruct( ObjyTypeCollection* types, TikiAllocator* allocator );
+void						objyTypeCollectionDestruct( ObjyTypeCollection* types );
 
-const ObjyType*		objyTypeCollectionFind( ObjyTypeCollection* types, const char* name );
+ObjyType*					objyTypeCollectionCreate( ObjyTypeCollection* types, const char* name, ObjyTypeKind kind, void* userData );
 
-const char*			objyTypeKindGetString( ObjyTypeKind kind );
+ObjyType*					objyTypeCollectionFind( ObjyTypeCollection* types, const char* name );
 
-const ObjyType*		objyTypeFindPathType( const ObjyType* type, TikiStringView path );
+const char*					objyTypeKindGetString( ObjyTypeKind kind );
+
+const ObjyType*				objyTypeFindPathType( const ObjyType* type, TikiStringView path );

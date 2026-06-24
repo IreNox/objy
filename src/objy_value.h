@@ -14,7 +14,7 @@ typedef struct ObjyValueField
 
 typedef struct ObjyValueStructData
 {
-	const ObjyType*		structType;
+	//const ObjyType*		structType;
 	ObjyValueField*		values;
 	uintsize			valueCount;
 	uintsize			valueCapacity;
@@ -22,11 +22,17 @@ typedef struct ObjyValueStructData
 
 typedef struct ObjyValueArrayData
 {
-	const ObjyType*		elementType;
+	//const ObjyType*		elementType;
 	ObjyValue**			values;
 	uintsize			valueCount;
 	uintsize			valueCapacity;
 } ObjyValueArrayData;
+
+typedef struct ObjyValueRefData
+{
+	ObjyId				typeId;
+	ObjyValue*			value;
+} ObjyValueRefData;
 
 typedef union ObjyValueData
 {
@@ -38,7 +44,7 @@ typedef union ObjyValueData
 	ObjyValueStructData	struc;	// struct
 	ObjyValueArrayData	arr;	// array
 	TikiStringView		str;	// string
-	ObjyValue*			ref;	// reference
+	ObjyValueRefData	ref;	// reference
 } ObjyValueData;
 
 struct ObjyValue

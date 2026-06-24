@@ -1,5 +1,7 @@
 #include "objy/objy.h"
 
+#include <assert.h>
+
 #define TIKI_ARRAY_COUNT( arr ) (sizeof( arr ) / sizeof( *(arr) ))
 
 int main()
@@ -8,9 +10,9 @@ int main()
 
 	ObjySystem* system = objyCreate( &parameters );
 
-	const ObjyType* intType = objyTypeCreateValue( system, "SInt32", ObjyTypeKind_Integer, 32, true, NULL );
-	const ObjyType* floatType = objyTypeCreateValue( system, "Float32", ObjyTypeKind_Float, 32, true, NULL );
-	const ObjyType* stringType = objyTypeCreateValue( system, "String", ObjyTypeKind_String, 0, false, NULL );
+	const ObjyType* intType = objyTypeFind( system, "SInt32" );
+	const ObjyType* floatType = objyTypeFind( system, "Float" );
+	const ObjyType* stringType = objyTypeFind( system, "String" );
 
 	ObjyTypeField test1Fields[] =
 	{
@@ -19,8 +21,7 @@ int main()
 		{ "stringTest", stringType }
 	};
 
-	const ObjyType* folderType = objyTypeCreateStruct( system, "Folder", NULL, 0, NULL );
-	const ObjyType* testType = objyTypeCreateStruct( system, "Test1", test1Fields, TIKI_ARRAY_COUNT( test1Fields ), NULL);
+	const ObjyType* folderType = objyTypeFind( system, "Folder" );
 
 	ObjyContext* rootContext = objyGetRootContext( system );
 
@@ -30,13 +31,22 @@ int main()
 
 		ObjyObject* contextObject = objyObjectCreateDetached( rootContext, contextId, "Test Context", folderType );
 
+		const ObjyType* testType;
+		{
+			ObjyChangeSet* changeSet = objyChangeSetBegin( rootContext );
+
+			testType = objyChangeSetTypeCreateStruct( changeSet, "Test1", test1Fields, TIKI_ARRAY_COUNT( test1Fields ), NULL);
+
+			objyChangeSetSubmit( changeSet );
+		}
+
 		ObjyContext* context = objyContextCreate( system, contextObject );
 
+		ObjyId testId;
 		{
 			ObjyChangeSet* changeSet = objyChangeSetBegin( context );
 
 			{
-				ObjyId testId;
 				objyIdCreate( &testId );
 
 				ObjyObject* testObject = objyChangeSetObjectCreate( changeSet, testId, "Test 1", testType, contextId );
@@ -45,7 +55,19 @@ int main()
 				objyChangeSetWriteString( changeSet, testObject, "stringTest", "everything" );
 
 			}
-			objyChangeSetSubmit( changeSet );
+
+			const bool result = objyChangeSetSubmit( changeSet );
+			assert( result );
+		}
+
+		{
+			const ObjyObject* testObject = objyObjectFind( context, testId );
+			assert( testObject );
+
+			const ObjyValue* rootValue = objyObjectGetValue( testObject );
+
+			assert( objyValueGetKind( rootValue ) == ObjyTypeKind_Struct );
+
 		}
 
 		objyContextDestroy( context );

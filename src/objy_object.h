@@ -59,12 +59,12 @@ typedef struct ObjyObjectStorage
 bool		objyObjectStorageConstruct( ObjyObjectStorage* objects, TikiAllocator* allocator );
 void		objyObjectStorageDestruct( ObjyObjectStorage* objects );
 
-ObjyObject*	objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, TikiStringView name, const ObjyType* structType, ObjyId parentId );
+ObjyObject*	objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, TikiStringView name, const ObjyType* structType, ObjyId parentId, ObjyValue* baseValue );
 void		objyObjectStorageDestroyObject( ObjyContext* context, ObjyObject* object );
 
 ObjyObject*	objyObjectStorageFind( ObjyObjectStorage* objects, ObjyId id );
 
-void		objyObjectAddToParent( ObjyObject* object, ObjyObject* parent );
+bool		objyObjectAddToParent( ObjyObject* object, ObjyObject* parent );
 void		objyObjectRemoveFromParent( ObjyObject* object );
 
 bool		objyObjectStateContextConstruct( ObjyObjectStateContext* stateContext, ObjyContext* context, ObjyObjectStateContext* parentState );

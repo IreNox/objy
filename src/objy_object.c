@@ -27,7 +27,7 @@ void objyObjectStorageDestruct( ObjyObjectStorage* objects )
 	tikiPoolDestruct( &objects->pool );
 }
 
-ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, TikiStringView name, const ObjyType* structType, ObjyId parentId )
+ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, TikiStringView name, const ObjyType* structType, ObjyId parentId, ObjyValue* baseValue )
 {
 	if( !objyIdIsValid( id ) )
 	{
@@ -91,7 +91,6 @@ ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, Tiki
 	object->context		= context;
 	object->type		= structType;
 	object->name		= tikiStringViewAllocateCopy( context->allocator, name );
-	//object->rootValue	= objyValueCreateStruct( context, structType );
 
 	if( !object->name.data )
 	{
@@ -100,7 +99,16 @@ ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, Tiki
 		return NULL;
 	}
 
-	objyObjectAddToParent( object, parent );
+	if( !objyObjectAddToParent( object, parent ) )
+	{
+		tikiPoolFree( &context->objects.pool, index );
+		return NULL;
+	}
+
+	if( baseValue )
+	{
+		objyObjectStateContextSet( &context->baseState, object, baseValue, true );
+	}
 
 	tikiHashMapInsert( &context->objects.idMap, &object );
 
@@ -141,7 +149,7 @@ ObjyObject* objyObjectStorageFind( ObjyObjectStorage* objects, ObjyId id )
 	return *objectEntry;
 }
 
-void objyObjectAddToParent( ObjyObject* object, ObjyObject* parent )
+bool objyObjectAddToParent( ObjyObject* object, ObjyObject* parent )
 {
 	TIKI_ASSERT( object->parent == NULL );
 
@@ -149,6 +157,21 @@ void objyObjectAddToParent( ObjyObject* object, ObjyObject* parent )
 
 	if( parent )
 	{
+		// TODO: enable this feature for more types
+		if( tikiStringViewIsEqualsStr( parent->type->name, "Folder" ) )
+		{
+			for( ObjyObject* siblingObject = parent->firstChild; siblingObject != NULL; siblingObject = siblingObject->nextSibling )
+			{
+				if( !tikiStringViewIsEquals( siblingObject->name, object->name ) )
+				{
+					continue;
+				}
+
+				TIKI_DEBUG_ERROR( "Error: It is not allowed to have two Objects with the same name in a Folder." );
+				return false;
+			}
+		}
+
 		if( parent->lastChild )
 		{
 			parent->lastChild->nextSibling = object;
@@ -161,6 +184,8 @@ void objyObjectAddToParent( ObjyObject* object, ObjyObject* parent )
 			parent->lastChild = object;
 		}
 	}
+
+	return true;
 }
 
 void objyObjectRemoveFromParent( ObjyObject* object )
@@ -194,7 +219,7 @@ void objyObjectRemoveFromParent( ObjyObject* object )
 
 ObjyObject* objyObjectCreateDetached( ObjyContext* context, ObjyId id, const char* name, const ObjyType* structType )
 {
-	return objyObjectStorageCreateObject( context, id, tikiStringViewCreateFromPointer( name ), structType, ObjyIdInvalid );
+	return objyObjectStorageCreateObject( context, id, tikiStringViewCreateFromPointer( name ), structType, ObjyIdInvalid, NULL );
 }
 
 void objyObjectDestroy( ObjyContext* context, ObjyObject* object )
@@ -362,7 +387,7 @@ static ObjyValue* objyObjectFindValueInternal( ObjyValue* value, TikiStringView 
 	}
 	else if( value->kind == ObjyTypeKind_Reference )
 	{
-		return objyObjectFindValueInternal( value->data.ref, path );
+		return objyObjectFindValueInternal( value->data.ref.value, path );
 	}
 	else if( value->kind != ObjyTypeKind_Struct )
 	{
@@ -470,7 +495,7 @@ ObjyValue* objyObjectStateContextFindOrCreate( ObjyObjectStateContext* stateCont
 		return value;
 	}
 
-	value = objyValueCreateStruct( stateContext->context, object->type );
+	value = objyValueCreateStruct( stateContext->context );
 	if( !objyObjectStateContextSet( stateContext, object, value, false ) )
 	{
 		objyValueDestroy( stateContext->context, value );
