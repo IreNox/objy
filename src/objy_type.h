@@ -66,6 +66,7 @@ struct ObjyType
 	const ObjyType*				baseType;
 	uint8						bitCount;
 	bool						signedInt;
+	uint64						version;
 	ObjyTypeNewObjectFunc*		newObjectCallback;
 	ObjyTypeObjectDeleteFunc*	objectDeleteCallback;
 	ObjyTypeObjectModifyFunc*	objectModifyCallback;
@@ -88,6 +89,8 @@ void						objyTypeCollectionDestruct( ObjyTypeCollection* types );
 ObjyType*					objyTypeCollectionCreate( ObjyTypeCollection* types, const char* name, ObjyTypeKind kind, void* userData );
 
 ObjyType*					objyTypeCollectionFind( ObjyTypeCollection* types, const char* name );
+
+void						objyTypeCollectionSetFields( ObjyTypeCollection* types, ObjyType* type, const ObjyTypeField* fields, size_t fieldCount );
 
 const char*					objyTypeKindGetString( ObjyTypeKind kind );
 

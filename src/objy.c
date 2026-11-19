@@ -42,33 +42,23 @@ ObjySystem* objyCreate( const ObjyParameters* parameters )
 	return system;
 }
 
-static const char* ObjyTypeKindNames[] =
-{
-	"Id",
-	"Bool",
-	"Integer",
-	"Float",
-	"Enum",
-	"String",
-	"Blob",
-	"Struct",
-	"Array",
-	"Reference",
-	"DateTime"
-};
-
 static bool objySystemCreateBaseTypes( ObjySystem* system )
 {
 	system->typeFolder	= objyTypeCollectionCreate( &system->types, "ObjyFolder", ObjyTypeKind_Struct, system );
-	if( !system->typeFolder )
+	system->typeType	= objyTypeCollectionCreate( &system->types, "ObjyType", ObjyTypeKind_Struct, system );
+	if( !system->typeFolder || !system->typeType )
 	{
 		objyDestroy( system );
 		return false;
 	}
 
-	system->typesFolderObject	= objyObjectStorageCreateObject( system->rootContext, ObjyIdTypesFolder, tikiStringViewCreateFromPointer( "Types" ), system->typeFolder, ObjyIdInvalid, NULL );
-	system->typeFolder->object	= objyObjectStorageCreateObject( system->rootContext, ObjyIdFolder, system->typeFolder->name, system->typeType, ObjyIdTypesFolder, NULL );
-	if( !system->typesFolderObject || !system->typeFolder->object )
+	ObjyChangeSetResult result;
+	system->rootContext->rootObject = objyObjectStorageCreateObject( system->rootContext, ObjyIdRoot, tikiStringViewCreateFromPointer( "ObjyRoot" ), system->typeFolder, ObjyIdInvalid, NULL, &result );
+
+	system->typesFolderObject	= objyObjectStorageCreateObject( system->rootContext, ObjyIdTypesFolder, tikiStringViewCreateFromPointer( "Types" ), system->typeFolder, ObjyIdRoot, NULL, &result );
+	system->typeFolder->object	= objyObjectStorageCreateObject( system->rootContext, ObjyIdFolder, system->typeFolder->name, system->typeType, ObjyIdTypesFolder, NULL, &result );
+	system->typeType->object	= objyObjectStorageCreateObject( system->rootContext, ObjyIdType, system->typeType->name, system->typeType, ObjyIdTypesFolder, NULL, &result );
+	if( !system->typesFolderObject || !system->typeFolder->object || !system->typeType->object )
 	{
 		objyDestroy( system );
 		return false;
@@ -78,39 +68,55 @@ static bool objySystemCreateBaseTypes( ObjySystem* system )
 	TIKI_VERIFY( objyValueWriteStructField( system->rootContext, typeRefValue, "BaseType", objyValueCreateId( system->rootContext, ObjyIdType ) ) );
 
 	system->typeKind	= objySystemCreateBaseType( system, ObjyIdTypeKind, "ObjyTypeKind", ObjyTypeKind_Enum, NULL );
-	system->typeType	= objySystemCreateBaseType( system, ObjyIdType, "ObjyType", ObjyTypeKind_Struct, NULL );
 	system->typeField	= objySystemCreateBaseType( system, ObjyIdTypeField, "ObjyTypeField", ObjyTypeKind_Struct, NULL );
-	system->typeRef		= objySystemCreateBaseType( system, ObjyIdTypeRef, "ObjyTypeRef", ObjyTypeKind_Reference, typeRefValue );
-	system->typeBool	= objySystemCreateBaseValueType( system, ObjyIdTypeUInt8, "Bool", ObjyTypeKind_Bool, 0, false );
+	system->typeTypeRef	= objySystemCreateBaseType( system, ObjyIdTypeRef, "ObjyTypeRef", ObjyTypeKind_Reference, typeRefValue );
+	system->typeBool	= objySystemCreateBaseValueType( system, ObjyIdTypeBool, "Bool", ObjyTypeKind_Bool, 0, false );
 	system->typeUInt8	= objySystemCreateBaseValueType( system, ObjyIdTypeUInt8, "UInt8", ObjyTypeKind_Integer, 8, false );
 	system->typeUInt16	= objySystemCreateBaseValueType( system, ObjyIdTypeUInt16, "UInt16", ObjyTypeKind_Integer, 16, false );
 	system->typeUInt32	= objySystemCreateBaseValueType( system, ObjyIdTypeUInt32, "UInt32", ObjyTypeKind_Integer, 32, false );
 	system->typeUInt64	= objySystemCreateBaseValueType( system, ObjyIdTypeUInt64, "UInt64", ObjyTypeKind_Integer, 64, false );
-	system->typeSInt8	= objySystemCreateBaseValueType( system, ObjyIdTypeUInt8, "SInt8", ObjyTypeKind_Integer, 8, true );
-	system->typeSInt16	= objySystemCreateBaseValueType( system, ObjyIdTypeUInt16, "SInt16", ObjyTypeKind_Integer, 16, true );
-	system->typeSInt32	= objySystemCreateBaseValueType( system, ObjyIdTypeUInt32, "SInt32", ObjyTypeKind_Integer, 32, true );
-	system->typeSInt64	= objySystemCreateBaseValueType( system, ObjyIdTypeUInt64, "SInt64", ObjyTypeKind_Integer, 64, true );
-	system->typeFloat	= objySystemCreateBaseValueType( system, ObjyIdTypeFloat, "SInt32", ObjyTypeKind_Integer, 32, true );
-	system->typeDouble	= objySystemCreateBaseValueType( system, ObjyIdTypeDouble, "SInt64", ObjyTypeKind_Integer, 64, true );
-	if( !system->typeFolder || !system->typeKind || !system->typeType || !system->typeField || !system->typeRef )
+	system->typeSInt8	= objySystemCreateBaseValueType( system, ObjyIdTypeSInt8, "SInt8", ObjyTypeKind_Integer, 8, true );
+	system->typeSInt16	= objySystemCreateBaseValueType( system, ObjyIdTypeSInt16, "SInt16", ObjyTypeKind_Integer, 16, true );
+	system->typeSInt32	= objySystemCreateBaseValueType( system, ObjyIdTypeSInt32, "SInt32", ObjyTypeKind_Integer, 32, true );
+	system->typeSInt64	= objySystemCreateBaseValueType( system, ObjyIdTypeSInt64, "SInt64", ObjyTypeKind_Integer, 64, true );
+	system->typeFloat	= objySystemCreateBaseValueType( system, ObjyIdTypeFloat, "Float", ObjyTypeKind_Integer, 32, true );
+	system->typeDouble	= objySystemCreateBaseValueType( system, ObjyIdTypeDouble, "Double", ObjyTypeKind_Integer, 64, true );
+	if( !system->typeFolder || !system->typeKind  || !system->typeField || !system->typeTypeRef )
 	{
 		objyDestroy( system );
 		return false;
 	}
 
-	system->typeRef->baseType = system->typeType;
+	system->typeTypeRef->baseType = system->typeType;
 
 	for( uintsize i = 0; i < TIKI_ARRAY_COUNT( ObjyIdObjyTypeKindValues ); ++i )
 	{
-		system->typeKindObjects[ i ] = objyObjectStorageCreateObject( system->rootContext, ObjyIdObjyTypeKindValues[ i ], tikiStringViewCreateFromPointer( ObjyTypeKindNames[ i ] ), system->typeField, ObjyIdTypeField, NULL );
+		system->typeKindObjects[ i ] = objyObjectStorageCreateObject( system->rootContext, ObjyIdObjyTypeKindValues[ i ], tikiStringViewCreateFromPointer( objyTypeKindGetString( i ) ), system->typeField, ObjyIdTypeField, NULL, &result );
 	}
 
+	const ObjyTypeField typeTypeFields[] =
+	{
+		{ "Kind",			system->typeKind },
+		{ "BaseType",		system->typeTypeRef },
+		{ "ValueBitCount",	system->typeUInt8 },
+		{ "SignedInteger",	system->typeBool },
+		{ "Version",		system->typeUInt64 },
+	};
+	objyTypeCollectionSetFields( &system->types, system->typeType, typeTypeFields, TIKI_ARRAY_COUNT( typeTypeFields ) );
+
+	const ObjyTypeField typeFieldFields[] =
+	{
+		{ "Type",			system->typeTypeRef },
+	};
+	objyTypeCollectionSetFields( &system->types, system->typeField, typeFieldFields, TIKI_ARRAY_COUNT( typeFieldFields ) );
+
 	system->typeTypeKindObject			= objySystemCreateBaseTypeField( system, system->typeType, ObjyIdObjyTypeKind,			"Kind", system->typeKind );
-	system->typeTypeBaseTypeObject		= objySystemCreateBaseTypeField( system, system->typeType, ObjyIdObjyTypeBaseType,		"BaseType", system->typeRef );
+	system->typeTypeBaseTypeObject		= objySystemCreateBaseTypeField( system, system->typeType, ObjyIdObjyTypeBaseType,		"BaseType", system->typeTypeRef );
 	system->typeTypeValueBitCountObject	= objySystemCreateBaseTypeField( system, system->typeType, ObjyIdObjyTypeValueBitCount, "ValueBitCount", system->typeUInt8 );
 	system->typeTypeSignedIntegerObject	= objySystemCreateBaseTypeField( system, system->typeType, ObjyIdObjyTypeSignedInteger, "SignedInteger", system->typeBool );
+	system->typeTypeVersionObject		= objySystemCreateBaseTypeField( system, system->typeType, ObjyIdObjyTypeSignedInteger, "Version", system->typeUInt64 );
 
-	system->typeFieldTypebject			= objySystemCreateBaseTypeField( system, system->typeType, ObjyIdObjyTypeFieldType, "Type", system->typeRef );
+	system->typeFieldTypebject			= objySystemCreateBaseTypeField( system, system->typeType, ObjyIdObjyTypeFieldType, "Type", system->typeTypeRef );
 
 	//ObjyObject* typesObject = objyObjectStorageFind( &system->rootContext->objects, ObjyIdFolderTypes );
 	//if( !typesObject )
@@ -131,7 +137,9 @@ static ObjyType* objySystemCreateBaseType( ObjySystem* system, ObjyId id, const 
 	TIKI_VERIFY( objyValueWriteStructField( system->rootContext, baseValue, "Kind", objyValueCreateId( system->rootContext, ObjyIdObjyTypeKindValues[ kind ] ) ) );
 
 	ObjyType* type = objyTypeCollectionCreate( &system->types, name, kind, system );
-	type->object = objyObjectStorageCreateObject( system->rootContext, id, tikiStringViewCreateFromPointer( name ), system->typeType, ObjyIdTypesFolder, baseValue );
+	ObjyChangeSetResult result;
+	type->object = objyObjectStorageCreateObject( system->rootContext, id, tikiStringViewCreateFromPointer( name ), system->typeType, ObjyIdTypesFolder, baseValue, &result );
+	TIKI_ASSERT( type->object != NULL );
 
 	return type;
 }
@@ -161,7 +169,9 @@ static ObjyObject*	objySystemCreateBaseTypeField( ObjySystem* system, const Objy
 {
 	ObjyValue* typeFieldValue = objyValueCreateStruct( system->rootContext );
 	TIKI_VERIFY( objyValueWriteStructField( system->rootContext, typeFieldValue, "Type", objyValueCreateId( system->rootContext, baseType->object->id ) ) );
-	return objyObjectStorageCreateObject( system->rootContext, id, tikiStringViewCreateFromPointer( name ), system->typeField, parentType->object->id, typeFieldValue );
+
+	ObjyChangeSetResult result;
+	return objyObjectStorageCreateObject( system->rootContext, id, tikiStringViewCreateFromPointer( name ), system->typeField, parentType->object->id, typeFieldValue, &result );
 }
 
 void objyDestroy( ObjySystem* system )
@@ -236,6 +246,11 @@ void objyContextDestroy( ObjyContext* context )
 	objyChangeStorageDestruct( &context->changes );
 
 	tikiPoolFree( &context->system->contextPool, context->index );
+}
+
+const ObjyObject* objyContextGetFirstObject( const ObjyContext* context )
+{
+	return context->rootObject->firstChild;
 }
 
 bool objyIdIsValid( ObjyId id )

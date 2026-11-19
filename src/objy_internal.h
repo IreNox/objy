@@ -35,7 +35,7 @@ struct ObjySystem
 	ObjyType*				typeKind;
 	ObjyType*				typeType;
 	ObjyType*				typeField;
-	ObjyType*				typeRef;
+	ObjyType*				typeTypeRef;
 
 	ObjyType*				typeBool;
 	ObjyType*				typeUInt8;
@@ -57,6 +57,7 @@ struct ObjySystem
 	ObjyObject*				typeTypeBaseTypeObject;
 	ObjyObject*				typeTypeValueBitCountObject;
 	ObjyObject*				typeTypeSignedIntegerObject;
+	ObjyObject*				typeTypeVersionObject;
 
 	ObjyObject*				typeFieldTypebject;
 };

@@ -27,11 +27,12 @@ void objyObjectStorageDestruct( ObjyObjectStorage* objects )
 	tikiPoolDestruct( &objects->pool );
 }
 
-ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, TikiStringView name, const ObjyType* structType, ObjyId parentId, ObjyValue* baseValue )
+ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, TikiStringView name, const ObjyType* structType, ObjyId parentId, ObjyValue* baseValue, ObjyChangeSetResult* result )
 {
 	if( !objyIdIsValid( id ) )
 	{
 		TIKI_DEBUG_ERROR( "Invalid ID to create object." );
+		*result = ObjyChangeSetResult_InvalidID;
 		return NULL;
 	}
 
@@ -39,23 +40,27 @@ ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, Tiki
 	if( tikiHashMapFind( &context->objects.idMap, &mapId ) )
 	{
 		TIKI_DEBUG_ERROR( "A object with the given ID already exists." );
+		*result = ObjyChangeSetResult_InvalidID;
 		return NULL;
 	}
 
 	if( !name.length )
 	{
 		TIKI_DEBUG_ERROR( "Object needs a name." );
+		*result = ObjyChangeSetResult_InvalidName;
 		return NULL;
 	}
 
 	if( !structType )
 	{
 		TIKI_DEBUG_ERROR( "Can't create object no type given." );
+		*result = ObjyChangeSetResult_InvalidType;
 		return NULL;
 	}
 	else if( structType->kind != ObjyTypeKind_Struct )
 	{
 		TIKI_DEBUG_ERROR( "Can't create object from non struct type." );
+		*result = ObjyChangeSetResult_InvalidType;
 		return NULL;
 	}
 
@@ -73,9 +78,21 @@ ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, Tiki
 			else
 			{
 				TIKI_DEBUG_ERROR( "Could not find parent object with id '" OBJY_ID_FORMAT_STRING "' to create child object.", OBJY_ID_FORMAT_DATA( parentId ) );
+				*result = ObjyChangeSetResult_InvalidParent;
+				return NULL;
+			}
+
+			if( parent->context != context )
+			{
+				TIKI_DEBUG_ERROR( "Parent content context object(" OBJY_ID_FORMAT_STRING ") is in a different change set context(" OBJY_ID_FORMAT_STRING ").", OBJY_ID_FORMAT_DATA( parent->context->rootObject->id ), OBJY_ID_FORMAT_DATA( context->rootObject->id ) );
+				*result = ObjyChangeSetResult_InvalidContext;
 				return NULL;
 			}
 		}
+	}
+	else
+	{
+		parent = context->rootObject;
 	}
 
 	ObjyObject* object;
@@ -83,6 +100,7 @@ ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, Tiki
 	if( index == TIKI_POOL_INVALID_INDEX )
 	{
 		TIKI_DEBUG_ERROR( "Failed to allocate object." );
+		*result = ObjyChangeSetResult_OutOfMemory;
 		return NULL;
 	}
 
@@ -96,18 +114,25 @@ ObjyObject* objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, Tiki
 	{
 		TIKI_DEBUG_ERROR( "Failed to allocate object name." );
 		tikiPoolFree( &context->objects.pool, index );
+		*result = ObjyChangeSetResult_OutOfMemory;
 		return NULL;
 	}
 
 	if( !objyObjectAddToParent( object, parent ) )
 	{
 		tikiPoolFree( &context->objects.pool, index );
+		*result = ObjyChangeSetResult_InvalidParent;
 		return NULL;
 	}
 
 	if( baseValue )
 	{
-		objyObjectStateContextSet( &context->baseState, object, baseValue, true );
+		if( !objyObjectStateContextSet( &context->baseState, object, baseValue, true ) )
+		{
+			tikiPoolFree( &context->objects.pool, index );
+			*result = ObjyChangeSetResult_OutOfMemory;
+			return NULL;
+		}
 	}
 
 	tikiHashMapInsert( &context->objects.idMap, &object );
@@ -219,7 +244,8 @@ void objyObjectRemoveFromParent( ObjyObject* object )
 
 ObjyObject* objyObjectCreateDetached( ObjyContext* context, ObjyId id, const char* name, const ObjyType* structType )
 {
-	return objyObjectStorageCreateObject( context, id, tikiStringViewCreateFromPointer( name ), structType, ObjyIdInvalid, NULL );
+	ObjyChangeSetResult result;
+	return objyObjectStorageCreateObject( context, id, tikiStringViewCreateFromPointer( name ), structType, ObjyIdInvalid, NULL, &result );
 }
 
 void objyObjectDestroy( ObjyContext* context, ObjyObject* object )

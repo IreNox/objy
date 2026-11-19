@@ -9,13 +9,15 @@ extern "C"
 {
 #endif
 
-typedef struct ObjySystem ObjySystem;
-typedef struct ObjyMutex ObjyMutex;
-typedef struct ObjyContext ObjyContext;
-typedef struct ObjyType ObjyType;
-typedef struct ObjyObject ObjyObject;
-typedef struct ObjyValue ObjyValue;
+//typedef struct ObjyMutex ObjyMutex;
+
 typedef struct ObjyChangeSet ObjyChangeSet;
+typedef struct ObjyClient ObjyClient;
+typedef struct ObjyContext ObjyContext;
+typedef struct ObjyObject ObjyObject;
+typedef struct ObjySystem ObjySystem;
+typedef struct ObjyType ObjyType;
+typedef struct ObjyValue ObjyValue;
 
 // Build in Types
 //struct Folder
@@ -64,6 +66,7 @@ static const ObjyId ObjyIdType			= { 0xfcaa256d, 0x6ec6, 0x3c2d, { 0xaa, 0x75, 0
 static const ObjyId ObjyIdTypeKind		= { 0x860950f1, 0xdb49, 0x3bca, { 0xa6, 0xcb, 0x70, 0x25, 0x61, 0x18, 0x3b, 0x94 } }; // UUID v3: ObjyIdTypesFolder/ObjyTypeKind
 static const ObjyId ObjyIdTypeField		= { 0x4c7276f7, 0xaba2, 0x30da, { 0x88, 0xac, 0x7c, 0x8f, 0xe5, 0x43, 0x8e, 0xf9 } }; // UUID v3: ObjyIdTypesFolder/ObjyTypeField
 static const ObjyId ObjyIdFolder		= { 0x9fc6a50b, 0x2d8b, 0x3811, { 0xa1, 0x01, 0x2e, 0xa1, 0xd9, 0x74, 0x47, 0x5a } }; // UUID v3: ObjyIdTypesFolder/ObjyFolder
+static const ObjyId ObjyIdRoot			= { 0xbd2ad6a4, 0x4fae, 0x38b9, { 0x86, 0xee, 0x7e, 0x70, 0x23, 0x1c, 0x02, 0x2e } }; // UUID v3: OID/ObjyRoot
 
 #define OBJY_ID_FORMAT_STRING "%08x-%04x-%04x-%02x%02-x%02x%02x%02x%02x%02x%02x"
 #define OBJY_ID_FORMAT_DATA( var ) var.data1, var.data2, var.data3, var.data4[ 0 ], var.data4[ 1 ], var.data4[ 2 ], var.data4[ 3 ], var.data4[ 4 ], var.data4[ 5 ], var.data4[ 6 ], var.data4[ 7 ]
@@ -145,9 +148,15 @@ typedef struct ObjyChangeSetFormatter
 	void*							userData;
 } ObjyChangeSetFormatter;
 
+typedef void (*ObjyChangeSetCommitFunc)( const ObjyChangeSet* changeSet, void* userData );
+
 typedef struct ObjyParameters					// Fill with zero for default parameters
 {
-	ObjyAllocator		allocator;				// Override memory Allocator. Default use malloc/free
+	ObjyAllocator			allocator;			// Override memory Allocator. Default use malloc/free
+
+	ObjyChangeSetCommitFunc	commitFunc;
+	void*					userData;
+
 	//ObjyMutexDefinition	mutex;
 } ObjyParameters;
 
@@ -160,6 +169,8 @@ ObjyContext*			objyGetRootContext( ObjySystem* system );
 
 ObjyContext*			objyContextCreate( ObjySystem* system, ObjyObject* parentObject );
 void					objyContextDestroy( ObjyContext* context );
+
+const ObjyObject*		objyContextGetFirstObject( const ObjyContext* context );
 
 // Types
 
@@ -185,6 +196,9 @@ typedef struct ObjyTypeField
 } ObjyTypeField;
 
 ObjyType*				objyTypeFind( ObjySystem* system, const char* name );
+ObjyType*				objyTypeGetFirst( ObjySystem* system );
+ObjyType*				objyTypeGetNext( ObjyType* type );
+//size_t					objyTypeGetCount( ObjySystem* system );
 
 void					objyTypeSetCallbacks( ObjySystem* system, ObjyType* type, ObjyTypeNewObjectFunc* newObjectCallback, ObjyTypeObjectDeleteFunc* objectDeleteCallback, ObjyTypeObjectModifyFunc* objectModifyCallback, void* userData );
 void					objyTypeSetUserData( ObjySystem* system, ObjyType* type, void* userData );
@@ -195,11 +209,14 @@ ObjyTypeKind			objyTypeGetKind( const ObjyType* type );
 const ObjyType*			objyTypeGetBaseType( const ObjyType* type );
 size_t					objyTypeGetValueBitCount( const ObjyType* type );
 bool					objyTypeGetSignedInt( const ObjyType* type );
+uint64_t				objyTypeGetVersion( const ObjyType* type );
 void*					objyTypeGetUserData( const ObjyType* type );
 const ObjyTypeField*	objyTypeGetStructLocalFields( const ObjyType* type );
 size_t					objyTypeGetStructLocalFieldCount( const ObjyType* type );
 const ObjyTypeField*	objyTypeGetStructGlobalFields( const ObjyType* type );
 size_t					objyTypeGetStructGlobalFieldCount( const ObjyType* type );
+
+const char*				objyTypeKindGetString( ObjyTypeKind kind );
 
 // Object
 
@@ -279,22 +296,40 @@ bool					objyValueWriteArray( ObjyContext* context, ObjyValue* value, size_t ind
 bool					objyValueWriteReference( ObjyContext* context, ObjyValue* value, ObjyId typeId, ObjyValue* newValue );
 bool					objyValueWriteBlob( ObjyContext* context, ObjyValue* value, const void* data, size_t dataSize );
 
-// Change
+// Change Set
+
+typedef enum ObjyChangeSetResult
+{
+	ObjyChangeSetResult_Ok,
+	ObjyChangeSetResult_Unknown,
+	ObjyChangeSetResult_OutOfMemory,
+	ObjyChangeSetResult_InvalidId,
+	ObjyChangeSetResult_InvalidName,
+	ObjyChangeSetResult_InvalidType,
+	ObjyChangeSetResult_InvalidObject,
+	ObjyChangeSetResult_InvalidContext,
+	ObjyChangeSetResult_InvalidParent,
+	ObjyChangeSetResult_InvalidValue,
+	ObjyChangeSetResult_InvalidPath,
+	ObjyChangeSetResult_TypeNotFound,
+	ObjyChangeSetResult_FieldNotFound,
+} ObjyChangeSetResult;
 
 ObjyChangeSet*			objyChangeSetBegin( ObjyContext* context );
 ObjyChangeSet*			objyChangeSetBeginDetached( ObjyContext* context );
-bool					objyChangeSetMerge( ObjyChangeSet* changeSet, const ObjyChangeSet* sourceChangeSet );
+ObjyChangeSetResult		objyChangeSetMerge( ObjyChangeSet* changeSet, const ObjyChangeSet* sourceChangeSet );
 void					objyChangeSetDiscard( ObjyChangeSet* changeSet );
-bool					objyChangeSetSubmit( ObjyChangeSet* changeSet );
+ObjyChangeSetResult		objyChangeSetSubmit( ObjyChangeSet* changeSet );
 
 ObjyBlob				objyChangeSetSerialize( ObjyContext* context, const ObjyChangeSet* changeSet, ObjyChangeSetFormatter* formatter );
 ObjyChangeSet*			objyChangeSetDeserialize( ObjyContext* context, ObjyBlob data, ObjyChangeSetFormatter* formatter );
 bool					objyChangeSetDeserializeMerge( ObjyChangeSet* changeSet, ObjyBlob data, ObjyChangeSetFormatter* formatter );
 
-bool					objyChangeSetIsValid( const ObjyChangeSet* changeSet );
+ObjyId					objyChangeSetGetId( const ObjyChangeSet* changeSet );
+ObjyChangeSetResult		objyChangeSetGetResult( const ObjyChangeSet* changeSet );
 
-ObjyObject*				objyChangeSetObjectCreate( ObjyChangeSet* changeSet, ObjyId id, const char* name, const ObjyType* structType, ObjyId parentId );
-ObjyObject*				objyChangeSetObjectCreateValue( ObjyChangeSet* changeSet, ObjyId id, const char* name, size_t nameLength, const ObjyType* structType, ObjyId parentId, ObjyValue* initValue );
+ObjyObject*				objyChangeSetObjectCreate( ObjyChangeSet* changeSet, const ObjyId* id, const char* name, const ObjyType* structType, ObjyId parentId );
+ObjyObject*				objyChangeSetObjectCreateValue( ObjyChangeSet* changeSet, const ObjyId* id, const char* name, size_t nameLength, const ObjyType* structType, ObjyId parentId, ObjyValue* initValue );
 void					objyChangeSetObjectDelete( ObjyChangeSet* changeSet, ObjyObject* object );
 void					objyChangeSetObjectDeleteId( ObjyChangeSet* changeSet, ObjyId objectId );
 void					objyChangeSetObjectMove( ObjyChangeSet* changeSet, ObjyObject* object, ObjyObject* newParent );
@@ -316,6 +351,17 @@ const ObjyType*			objyChangeSetTypeCreateArray( ObjyChangeSet* changeSet, const 
 const ObjyType*			objyChangeSetTypeCreateReference( ObjyChangeSet* changeSet, const ObjyType* baseType, void* userData );
 const ObjyType*			objyChangeSetTypeCreateBlob( ObjyChangeSet* changeSet, void* userData );
 void					objyChangeSetTypeRemove( ObjyChangeSet* changeSet, const ObjyType* type );
+
+// Client
+
+//typedef ObjyClientType
+
+ObjyClient*				objyClientRegisterHistory( ObjySystem* objy );
+ObjyClient*				objyClientRegisterState( ObjySystem* objy );
+void					objyClientUnregister( ObjySystem* objy, ObjyClient* client );
+
+const ObjyId*			objyClientGetChangedObjects( ObjyClient* client );
+size_t					objyClientGetChangedObjectCount( ObjyClient* client );
 
 #ifdef __cplusplus
 }

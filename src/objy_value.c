@@ -679,8 +679,8 @@ bool objyValueWriteStructFieldLength( ObjyContext* context, ObjyValue* value, co
 	}
 
 	//const ObjyType* structType = value->data.struc.structType;
-	//const TikiStringView fieldNameView = tikiStringViewCreate( fieldName, fieldNameLength );
-	const TikiStringView fieldNameView = tikiStringPoolAddPointer( &context->system->types.stringPool, fieldName );
+	const TikiStringView inputFieldNameView = tikiStringViewCreate( fieldName, fieldNameLength );
+	const TikiStringView fieldNameView = tikiStringPoolAdd( &context->system->types.stringPool, inputFieldNameView );
 
 	//ObjyTypeField* typeField = NULL;
 	//for( uintsize i = 0; i < structType->globalFieldCount; ++i )

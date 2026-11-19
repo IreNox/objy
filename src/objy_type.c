@@ -51,21 +51,64 @@ ObjyType* objyTypeCollectionFind( ObjyTypeCollection* types, const char* name )
 	return *type;
 }
 
-const char* objyTypeKindGetString( ObjyTypeKind kind )
+void objyTypeCollectionSetFields( ObjyTypeCollection* types, ObjyType* type, const ObjyTypeField* fields, size_t fieldCount )
 {
-	switch( kind )
+	const uintsize totalFieldCount = fieldCount + (type->baseType ? type->baseType->globalFieldCount : 0);
+	ObjyTypeField* newFields = TIKI_MEMORY_ARRAY_NEW( types->allocator, ObjyTypeField, totalFieldCount );
+
+	if( type->baseType )
 	{
-	case ObjyTypeKind_Id:			return "Id";
-	case ObjyTypeKind_Bool:			return "Bool";
-	case ObjyTypeKind_Integer:		return "Integer";
-	case ObjyTypeKind_Float:		return "Float";
-	case ObjyTypeKind_String:		return "String";
-	case ObjyTypeKind_Struct:		return "Struct";
-	case ObjyTypeKind_Array:		return "Array";
-	case ObjyTypeKind_Reference:	return "Reference";
+		memcpy( newFields, type->baseType->globalFields, sizeof( *fields ) * type->baseType->globalFieldCount );
+		memcpy( newFields + type->baseType->globalFieldCount, fields, sizeof( *fields ) * fieldCount );
+
+		type->localFields		= newFields + type->baseType->globalFieldCount;
+		type->localFieldCount	= fieldCount;
+		type->globalFields		= newFields;
+		type->globalFieldCount	= type->baseType->globalFieldCount + fieldCount;
+	}
+	else
+	{
+		memcpy( newFields, fields, sizeof( *fields ) * fieldCount );
+
+		type->localFields		= newFields;
+		type->localFieldCount	= fieldCount;
+		type->globalFields		= newFields;
+		type->globalFieldCount	= fieldCount;
 	}
 
-	return "invalid";
+	for( uintsize i = 0; i < type->localFieldCount; ++i )
+	{
+		ObjyTypeField* field = &type->localFields[ i ];
+
+		const TikiStringView fieldNameString = tikiStringPoolAddPointer( &types->stringPool, field->name );
+		field->name = fieldNameString.data;
+	}
+}
+
+static const char* s_objyTypeKindNames[] =
+{
+	"Id",
+	"Bool",
+	"Integer",
+	"Float",
+	"Enum",
+	"String",
+	"Blob",
+	"Struct",
+	"Array",
+	"Reference",
+	"DateTime"
+};
+static_assert( TIKI_ARRAY_COUNT( s_objyTypeKindNames ) == ObjyTypeKind_DateTime + 1, "type kind changed" );
+
+const char* objyTypeKindGetString( ObjyTypeKind kind )
+{
+	if( kind >= TIKI_ARRAY_COUNT( s_objyTypeKindNames ) )
+	{
+		return "invalid";
+	}
+
+	return s_objyTypeKindNames[ kind ];
 }
 
 const ObjyType* objyTypeFindPathType( const ObjyType* type, TikiStringView path )
@@ -331,6 +374,16 @@ ObjyType* objyTypeFind( ObjySystem* system, const char* name )
 	return objyTypeCollectionFind( &system->types, name );
 }
 
+ObjyType* objyTypeGetFirst( ObjySystem* system )
+{
+	return system->types.firstType;
+}
+
+ObjyType* objyTypeGetNext( ObjyType* type )
+{
+	return type->nextType;
+}
+
 ObjyId objyTypeGetId( const ObjyType* type )
 {
 	return type->object->id;
@@ -359,6 +412,11 @@ size_t objyTypeGetValueBitCount( const ObjyType* type )
 bool objyTypeGetSignedInt( const ObjyType* type )
 {
 	return type->signedInt;
+}
+
+uint64_t objyTypeGetVersion( const ObjyType* type )
+{
+	return type->version;
 }
 
 void* objyTypeGetUserData( const ObjyType* type )

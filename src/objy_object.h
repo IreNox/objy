@@ -6,6 +6,12 @@
 
 //#include "tiki_list.h"
 
+typedef struct ObjyObjectNode
+{
+	ObjyObject*				prevItem;
+	ObjyObject*				nextItem;
+} ObjyObjectNode;
+
 struct ObjyObject
 {
 	ObjyId					id;
@@ -18,7 +24,7 @@ struct ObjyObject
 	TikiStringView			name;
 
 	//TikiList				children;
-	//TikiListNode			childrenNode;
+	//ObjyObjectNode		childrenNode;
 	ObjyObject*				firstChild;
 	ObjyObject*				lastChild;
 	ObjyObject*				prevSibling;
@@ -59,7 +65,7 @@ typedef struct ObjyObjectStorage
 bool		objyObjectStorageConstruct( ObjyObjectStorage* objects, TikiAllocator* allocator );
 void		objyObjectStorageDestruct( ObjyObjectStorage* objects );
 
-ObjyObject*	objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, TikiStringView name, const ObjyType* structType, ObjyId parentId, ObjyValue* baseValue );
+ObjyObject*	objyObjectStorageCreateObject( ObjyContext* context, ObjyId id, TikiStringView name, const ObjyType* structType, ObjyId parentId, ObjyValue* baseValue, ObjyChangeSetResult* result );
 void		objyObjectStorageDestroyObject( ObjyContext* context, ObjyObject* object );
 
 ObjyObject*	objyObjectStorageFind( ObjyObjectStorage* objects, ObjyId id );

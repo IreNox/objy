@@ -10,8 +10,8 @@ static ObjyChange*	objyChangeCreateInternal( ObjyChangeSet* changeSet, ObjyChang
 static ObjyChange*	objyChangeWriteValueInternal( ObjyChangeSet* changeSet, ObjyObject* object, const char* path, size_t pathLength, ObjyValue* newValue );
 static void			objyChangeFree( ObjyChangeSet* changeSet, ObjyChange* change );
 
-static bool			objyChangeApply( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject* object );
-static bool			objyChangeApplyCreate( ObjyChangeSet* changeSet, ObjyChange* change );
+static bool			objyChangeApply( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject** object );
+static bool			objyChangeApplyCreate( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject** objectOutput );
 static bool			objyChangeApplyDelete( ObjyChangeSet* changeSet, ObjyObject* object );
 static bool			objyChangeApplyMove( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject* object );
 static bool			objyChangeApplyModify( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject* object );
@@ -74,6 +74,8 @@ ObjyChangeSet* objyChangeSetBegin( ObjyContext* context )
 	changeSet->index	= index;
 	changeSet->context	= context;
 
+	objyIdCreate( &changeSet->id );
+
 	return changeSet;
 }
 
@@ -102,10 +104,10 @@ void objyChangeSetDiscard( ObjyChangeSet* changeSet )
 	objyChangeSetFree( changeSet );
 }
 
-bool objyChangeSetSubmit( ObjyChangeSet* changeSet )
+ObjyChangeSetResult objyChangeSetSubmit( ObjyChangeSet* changeSet )
 {
-	const bool hasError = changeSet->hasError;
-	if( hasError )
+	const ObjyChangeSetResult result = changeSet->result;
+	if( result != ObjyChangeSetResult_Ok )
 	{
 		objyChangeSetDiscard( changeSet );
 		return false;
@@ -116,10 +118,12 @@ bool objyChangeSetSubmit( ObjyChangeSet* changeSet )
 		// apply changes
 	}
 
+	//tikiListPushBack( &changeSet->context->changes.changeSets, changeSet );
+
 	changeSet->prevChangeSet = changeSet->context->changes.lastChangeSet;
 	changeSet->context->changes.lastChangeSet = changeSet;
 
-	return true;
+	return result;
 }
 
 static void objyChangeSetFree( ObjyChangeSet* changeSet )
@@ -171,9 +175,14 @@ ObjyChangeSet* objyChangeSetDeserialize( ObjyContext* context, ObjyBlob data, Ob
 //	return result;
 //}
 
-bool objyChangeSetIsValid( const ObjyChangeSet* changeSet )
+ObjyId objyChangeSetGetId( const ObjyChangeSet* changeSet )
 {
-	return !changeSet->hasError;
+	return changeSet->id;
+}
+
+ObjyChangeSetResult objyChangeSetGetResult( const ObjyChangeSet* changeSet )
+{
+	return changeSet->result;
 }
 
 static ObjyChange* objyChangeCreateInternal( ObjyChangeSet* changeSet, ObjyChangeType type, ObjyId objectId )
@@ -181,7 +190,7 @@ static ObjyChange* objyChangeCreateInternal( ObjyChangeSet* changeSet, ObjyChang
 	if( !TIKI_MEMORY_ARRAY_CHECK_CAPACITY_ZERO( changeSet->context->allocator, changeSet->changes, changeSet->changeCapacity, changeSet->changeCount + 1u ) )
 	{
 		TIKI_DEBUG_ERROR( "Can't allocate changes for change set." );
-		changeSet->hasError = true;
+		changeSet->result = ObjyChangeSetResult_OutOfMemory;
 		return NULL;
 	}
 
@@ -192,37 +201,39 @@ static ObjyChange* objyChangeCreateInternal( ObjyChangeSet* changeSet, ObjyChang
 	return change;
 }
 
-ObjyObject* objyChangeSetObjectCreate( ObjyChangeSet* changeSet, ObjyId id, const char* name, const ObjyType* structType, ObjyId parentId )
+ObjyObject* objyChangeSetObjectCreate( ObjyChangeSet* changeSet, const ObjyId* id, const char* name, const ObjyType* structType, ObjyId parentId )
 {
 	return objyChangeSetObjectCreateValue( changeSet, id, name, strlen( name ), structType, parentId, NULL );
 }
 
-ObjyObject* objyChangeSetObjectCreateValue( ObjyChangeSet* changeSet, ObjyId id, const char* name, size_t nameLength, const ObjyType* structType, ObjyId parentId, ObjyValue* initValue )
+ObjyObject* objyChangeSetObjectCreateValue( ObjyChangeSet* changeSet, const ObjyId* id, const char* name, size_t nameLength, const ObjyType* structType, ObjyId parentId, ObjyValue* initValue )
 {
-	ObjyChange* change = objyChangeCreateInternal( changeSet, ObjyChangeType_Create, id );
+	ObjyId objectId;
+	if( id )
+	{
+		objectId = *id;
+
+	}
+	else
+	{
+		objyIdCreate( &objectId );
+	}
+
+	ObjyChange* change = objyChangeCreateInternal( changeSet, ObjyChangeType_Create, objectId );
 	if( !change )
 	{
 		return NULL;
 	}
 
 	ObjyChangeCreateData* createData = &change->data.create;
-	createData->id			= id;
 	createData->name		= tikiStringViewAllocateCopyPointerLength( changeSet->context->allocator, name, nameLength );
 	createData->parentId	= parentId;
 	createData->typeName	= structType->name;
 	createData->initValue	= initValue;
 
-	if( !objyChangeApply( changeSet, change, NULL ) )
+	ObjyObject* object;
+	if( !objyChangeApply( changeSet, change, &object ) )
 	{
-		changeSet->changeCount--;
-		return NULL;
-	}
-
-	ObjyObject* object = objyObjectStorageFind( &changeSet->context->objects, id );
-	if( !object )
-	{
-		TIKI_DEBUG_ERROR( "Can't find newly created object." );
-		changeSet->hasError = true;
 		changeSet->changeCount--;
 		return NULL;
 	}
@@ -234,8 +245,8 @@ void objyChangeSetObjectDelete( ObjyChangeSet* changeSet, ObjyObject* object )
 {
 	if( !object )
 	{
-		changeSet->hasError = true;
-		TIKI_DEBUG_ERROR( "Can't create change no object given." );
+		TIKI_DEBUG_ERROR( "No object given for delete." );
+		changeSet->result = ObjyChangeSetResult_InvalidObject;
 		return;
 	}
 
@@ -245,7 +256,7 @@ void objyChangeSetObjectDelete( ObjyChangeSet* changeSet, ObjyObject* object )
 		return;
 	}
 
-	if( !objyChangeApply( changeSet, change, object ) )
+	if( !objyChangeApply( changeSet, change, &object ) )
 	{
 		changeSet->changeCount--;
 	}
@@ -267,15 +278,14 @@ void objyChangeSetObjectMove( ObjyChangeSet* changeSet, ObjyObject* object, Objy
 {
 	if( !object )
 	{
-		changeSet->hasError = true;
-		TIKI_DEBUG_ERROR( "Can't create change no object given." );
+		TIKI_DEBUG_ERROR( "No object given to move." );
+		changeSet->result = ObjyChangeSetResult_InvalidObject;
 		return;
 	}
 
 	ObjyChange* change = objyChangeCreateInternal( changeSet, ObjyChangeType_Delete, object->id );
 	if( !change )
 	{
-		changeSet->hasError = true;
 		return;
 	}
 
@@ -283,7 +293,7 @@ void objyChangeSetObjectMove( ObjyChangeSet* changeSet, ObjyObject* object, Objy
 	moveData->oldParentId	= object->parent ? object->parent->id : ObjyIdInvalid;
 	moveData->newParentId	= newParent ? newParent->id : ObjyIdInvalid;
 
-	if( !objyChangeApply( changeSet, change, object ) )
+	if( !objyChangeApply( changeSet, change, &object ) )
 	{
 		changeSet->changeCount--;
 	}
@@ -293,8 +303,8 @@ static ObjyChange* objyChangeWriteValueInternal( ObjyChangeSet* changeSet, ObjyO
 {
 	if( !object )
 	{
-		changeSet->hasError = true;
-		TIKI_DEBUG_ERROR( "Can't create change no object given." );
+		TIKI_DEBUG_ERROR( "No object given to write value." );
+		changeSet->result = ObjyChangeSetResult_InvalidObject;
 		return NULL;
 	}
 
@@ -311,7 +321,7 @@ static ObjyChange* objyChangeWriteValueInternal( ObjyChangeSet* changeSet, ObjyO
 	modifyData->oldValue	= objyValueCreateCopy( changeSet->context, oldValue );
 	modifyData->newValue	= newValue;
 
-	if( !objyChangeApply( changeSet, change, object ) )
+	if( !objyChangeApply( changeSet, change, &object ) )
 	{
 		objyChangeFree( changeSet, change );
 		changeSet->changeCount--;
@@ -326,7 +336,7 @@ void objyChangeSetWriteId( ObjyChangeSet* changeSet, ObjyObject* object, const c
 	ObjyValue* valueData = objyValueCreateId( changeSet->context, value );
 	if( !valueData )
 	{
-		changeSet->hasError = true;
+		changeSet->result = ObjyChangeSetResult_OutOfMemory;
 		return;
 	}
 
@@ -338,7 +348,7 @@ void objyChangeSetWriteBool( ObjyChangeSet* changeSet, ObjyObject* object, const
 	ObjyValue* valueData = objyValueCreateBool( changeSet->context, value );
 	if( !valueData )
 	{
-		changeSet->hasError = true;
+		changeSet->result = ObjyChangeSetResult_OutOfMemory;
 		return;
 	}
 
@@ -350,7 +360,7 @@ void objyChangeSetWriteUInt( ObjyChangeSet* changeSet, ObjyObject* object, const
 	ObjyValue* valueData = objyValueCreateUInt( changeSet->context, value );
 	if( !valueData )
 	{
-		changeSet->hasError = true;
+		changeSet->result = ObjyChangeSetResult_OutOfMemory;
 		return;
 	}
 
@@ -362,7 +372,7 @@ void objyChangeSetWriteSInt( ObjyChangeSet* changeSet, ObjyObject* object, const
 	ObjyValue* valueData = objyValueCreateSInt( changeSet->context, value );
 	if( !valueData )
 	{
-		changeSet->hasError = true;
+		changeSet->result = ObjyChangeSetResult_OutOfMemory;
 		return;
 	}
 
@@ -374,7 +384,7 @@ void objyChangeSetWriteFloat( ObjyChangeSet* changeSet, ObjyObject* object, cons
 	ObjyValue* valueData = objyValueCreateFloat( changeSet->context, value );
 	if( !valueData )
 	{
-		changeSet->hasError = true;
+		changeSet->result = ObjyChangeSetResult_OutOfMemory;
 		return;
 	}
 
@@ -391,7 +401,7 @@ void objyChangeSetWriteStringLength( ObjyChangeSet* changeSet, ObjyObject* objec
 	ObjyValue* valueData = objyValueCreateStringLength( changeSet->context, value, stringLength );
 	if( !valueData )
 	{
-		changeSet->hasError = true;
+		changeSet->result = ObjyChangeSetResult_OutOfMemory;
 		return;
 	}
 
@@ -422,7 +432,7 @@ void objyChangeSetWriteStringLength( ObjyChangeSet* changeSet, ObjyObject* objec
 //	objyChangeWriteValueInternal( changeSet, object, path, strlen( path ), valueData );
 //}
 
-static bool objyChangeApply( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject* object )
+static bool objyChangeApply( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject** object )
 {
 	if( changeSet->isDetached )
 	{
@@ -433,19 +443,19 @@ static bool objyChangeApply( ObjyChangeSet* changeSet, ObjyChange* change, ObjyO
 	switch( change->type )
 	{
 	case ObjyChangeType_Create:
-		result = objyChangeApplyCreate( changeSet, change );
+		result = objyChangeApplyCreate( changeSet, change, object );
 		break;
 
 	case ObjyChangeType_Delete:
-		result = objyChangeApplyDelete( changeSet, object );
+		result = objyChangeApplyDelete( changeSet, *object );
 		break;
 
 	case ObjyChangeType_Move:
-		result = objyChangeApplyMove( changeSet, change, object );
+		result = objyChangeApplyMove( changeSet, change, *object );
 		break;
 
 	case ObjyChangeType_Modify:
-		result = objyChangeApplyModify( changeSet, change, object );
+		result = objyChangeApplyModify( changeSet, change, *object );
 		break;
 
 	default:
@@ -453,15 +463,11 @@ static bool objyChangeApply( ObjyChangeSet* changeSet, ObjyChange* change, ObjyO
 		break;
 	}
 
-	if( !result )
-	{
-		changeSet->hasError = true;
-	}
-
+	TIKI_ASSERT( result || changeSet->result != ObjyChangeSetResult_Ok );
 	return result;
 }
 
-static bool objyChangeApplyCreate( ObjyChangeSet* changeSet, ObjyChange* change )
+static bool objyChangeApplyCreate( ObjyChangeSet* changeSet, ObjyChange* change, ObjyObject** objectOutput )
 {
 	ObjyChangeCreateData* createData = &change->data.create;
 
@@ -469,13 +475,13 @@ static bool objyChangeApplyCreate( ObjyChangeSet* changeSet, ObjyChange* change 
 	if( !type )
 	{
 		TIKI_DEBUG_ERROR( "Could not find type with name '%s'.", createData->typeName.data );
+		changeSet->result = ObjyChangeSetResult_TypeNotFound;
 		return false;
 	}
 
-	ObjyObject* object = objyObjectStorageCreateObject( changeSet->context, createData->id, createData->name, type, createData->parentId, NULL );
+	ObjyObject* object = objyObjectStorageCreateObject( changeSet->context, change->objectId, createData->name, type, createData->parentId, NULL, &changeSet->result );
 	if( !object )
 	{
-		changeSet->hasError = true;
 		return false;
 	}
 
@@ -483,12 +489,13 @@ static bool objyChangeApplyCreate( ObjyChangeSet* changeSet, ObjyChange* change 
 	{
 		if( !objyObjectStateContextSet( &changeSet->stateContext, object, createData->initValue, true ) )
 		{
-			changeSet->hasError = true;
+			changeSet->result = ObjyChangeSetResult_OutOfMemory;
 			objyObjectStorageDestroyObject( changeSet->context, object );
 			return false;
 		}
 	}
 
+	*objectOutput = object;
 	return true;
 }
 
@@ -507,6 +514,7 @@ static bool objyChangeApplyMove( ObjyChangeSet* changeSet, ObjyChange* change, O
 		if( !newParent )
 		{
 			TIKI_DEBUG_ERROR( "Could not find new parent with id '" OBJY_ID_FORMAT_STRING "'.", OBJY_ID_FORMAT_DATA( change->data.move.newParentId ) );
+			changeSet->result = ObjyChangeSetResult_InvalidParent;
 			return false;
 		}
 	}
@@ -525,6 +533,7 @@ static bool objyChangeApplyModify( ObjyChangeSet* changeSet, ObjyChange* change,
 	if( !pathType )
 	{
 		TIKI_DEBUG_ERROR( "Could not find type for path '%.*s' on type '%.*s'", modifyData->path.length, modifyData->path.data, object->type->name.length, object->type->name.data );
+		changeSet->result = ObjyChangeSetResult_InvalidPath;
 		return false;
 	}
 
@@ -532,6 +541,7 @@ static bool objyChangeApplyModify( ObjyChangeSet* changeSet, ObjyChange* change,
 		modifyData->newValue->kind != pathType->kind )
 	{
 		TIKI_DEBUG_ERROR( "Can set a '%s' value on a '%s' field for path '%.*s' on object '" OBJY_ID_FORMAT_STRING "'", objyTypeKindGetString( modifyData->newValue->kind ), objyTypeKindGetString( pathType->kind ), modifyData->path.length, modifyData->path.data, OBJY_ID_FORMAT_DATA( object->id ) );
+		changeSet->result = ObjyChangeSetResult_InvalidValue;
 		return false;
 	}
 
@@ -539,6 +549,7 @@ static bool objyChangeApplyModify( ObjyChangeSet* changeSet, ObjyChange* change,
 	if( !rootValue )
 	{
 		TIKI_DEBUG_ERROR( "Cloud not create root value for object '" OBJY_ID_FORMAT_STRING "'", OBJY_ID_FORMAT_DATA( object->id ) );
+		changeSet->result = ObjyChangeSetResult_OutOfMemory;
 		return false;
 	}
 
@@ -552,6 +563,7 @@ static bool objyChangeApplyModify( ObjyChangeSet* changeSet, ObjyChange* change,
 			if( value->kind != ObjyTypeKind_Array )
 			{
 				TIKI_DEBUG_ERROR( "Expected 'Array' value but got '%s' value. Path: %.*s", objyTypeKindGetString( value->kind ), path.length, path.data );
+				changeSet->result = ObjyChangeSetResult_InvalidType;
 				return false;
 			}
 
@@ -559,6 +571,7 @@ static bool objyChangeApplyModify( ObjyChangeSet* changeSet, ObjyChange* change,
 			if( !arrayClose )
 			{
 				TIKI_DEBUG_ERROR( "No array close square brackets. Path: %.*s", path.length, path.data );
+				changeSet->result = ObjyChangeSetResult_InvalidPath;
 				return false;
 			}
 
@@ -567,6 +580,7 @@ static bool objyChangeApplyModify( ObjyChangeSet* changeSet, ObjyChange* change,
 			if( numberEnd != arrayClose )
 			{
 				TIKI_DEBUG_ERROR( "Invalid array index. Path: %.*s", path.length, path.data );
+				changeSet->result = ObjyChangeSetResult_InvalidPath;
 				return false;
 			}
 
@@ -574,6 +588,7 @@ static bool objyChangeApplyModify( ObjyChangeSet* changeSet, ObjyChange* change,
 			{
 				if( !TIKI_MEMORY_ARRAY_CHECK_CAPACITY_ZERO( changeSet->context->allocator, value->data.arr.values, value->data.arr.valueCapacity, arrayIndex + 1 ) )
 				{
+					changeSet->result = ObjyChangeSetResult_OutOfMemory;
 					return false;
 				}
 
@@ -618,6 +633,7 @@ static bool objyChangeApplyModify( ObjyChangeSet* changeSet, ObjyChange* change,
 			if( !fieldType )
 			{
 				TIKI_DEBUG_ERROR( "Field '%.*s' not found in Type '%.*s'. Path: %.*s", fieldView.length, fieldView.data, type->name.length, type->name.data, path.length, path.data );
+				changeSet->result = ObjyChangeSetResult_InvalidPath;
 				return false;
 			}
 
@@ -647,16 +663,18 @@ static bool objyChangeApplyModify( ObjyChangeSet* changeSet, ObjyChange* change,
 		else
 		{
 			TIKI_DEBUG_ERROR( "Unexpected '%s' value. Path: %.*s", objyTypeKindGetString( value->kind ), path.length, path.data );
+			changeSet->result = ObjyChangeSetResult_InvalidPath;
 			return false;
 		}
 	}
 
 	if( !objyValueCopyData( changeSet->context, value, modifyData->newValue ) )
 	{
+		changeSet->result = ObjyChangeSetResult_OutOfMemory;
 		return false;
 	}
 
-#pragma message( "objyChangeApplyModify: not implemented" )
+#pragma message( "objyChangeApplyModify: not implemented. really?" )
 
 	return true;
 }

@@ -16,7 +16,6 @@ typedef enum ObjyChangeType
 
 typedef struct ObjyChangeCreateData
 {
-	ObjyId					id;
 	TikiStringView			name;
 	ObjyId					parentId;
 	TikiStringView			typeName;
@@ -56,16 +55,24 @@ typedef struct ObjyChange
 	ObjyChangeData			data;
 } ObjyChange;
 
+typedef struct ObjyChangeSetNode
+{
+	ObjyChangeSet*			prevItem;
+	ObjyChangeSet*			nextItem;
+} ObjyChangeSetNode;
+
 struct ObjyChangeSet
 {
 	uint64					index;
+	ObjyId					id;
 
 	ObjyContext*			context;
 	ObjyObjectStateContext	stateContext;
 
 	bool					isDetached;
-	bool					hasError;
+	ObjyChangeSetResult		result;
 
+	ObjyChangeSetNode		listNode;
 	ObjyChangeSet*			prevChangeSet;
 	ObjyChangeSet*			nextChangeSet;
 
@@ -81,7 +88,10 @@ typedef struct ObjyChangeStorage
 	TikiPool				changeSetPool;
 	ObjyChangeSet*			firstChangeSet;
 	ObjyChangeSet*			lastChangeSet;
+	//TikiList				changeSets;
 
+	//TikiList				openChangeSets;
+	//TikiList				detachedChangeSets;
 	ObjyChangeSet*			firstOpenChangeSet;
 	ObjyChangeSet*			lastOpenChangeSet;
 	ObjyChangeSet*			firstDetachedChangeSet;
